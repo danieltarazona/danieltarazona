@@ -10,7 +10,7 @@ Hi there! I'm Daniel, a passionate Senior iOS Engineer at Endava. I specialize i
 
 ## My Work
 
-Here's a snapshot of some of the repositories I've worked on:
+Here's a snapshot of some of the public repositories I've worked on:
 
 - `VGHS`: A project related to Video Game High School.
 - `Inventario`: A smart solution for shipping, shopping analytics, and inventory management using AR.
