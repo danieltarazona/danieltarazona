@@ -21,7 +21,7 @@ Here's a snapshot of some of the public repositories I've worked on:
 ## Get in Touch
 
 - 📧 Feel free to reach out to me for collaborations or just a chat about technology and coding!
-- 🔗 [LinkedIn]([your-linkedin-url](https://www.linkedin.com/in/danieltarazona/)) | [Personal Website](danieltarazona.com) Coming Soon.
+- 🔗 [LinkedIn](https://www.linkedin.com/in/danieltarazona/) | [Personal Website - Coming Soon](danieltarazona.com)
 
 Thanks for stopping by! 🌟
 
