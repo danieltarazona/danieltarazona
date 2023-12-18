@@ -1,6 +1,6 @@
 # Daniel Tarazona - Senior iOS Engineer 👨‍💻
 
-Hi there! I'm Daniel, a passionate Senior iOS Engineer at Endava. I specialize in Swift, iOS, Python, and JavaScript. 🚀
+Hi there! I'm Daniel, a passionate Senior iOS Engineer. I specialize in Swift, iOS, Python, FreeBSD and JavaScript. 🚀
 
 ## About Me
 
