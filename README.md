@@ -2,6 +2,11 @@
 
 Hi there! I'm Daniel, a passionate Senior iOS Engineer. I specialize in Swift, iOS, Python, FreeBSD and JavaScript. 🚀
 
+<h3 align="left">Connect with me:</h3>
+<p align="left">
+<a href="https://www.linkedin.com/in/danieltarazona" target="blank"><img align="center" src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/linked-in-alt.svg" alt="in/danieltarazona" height="30" width="40" /></a>
+</p>
+
 ## About Me
 
 - 🌏 I frequently travel between Cali and Medellin and love exploring new places.
