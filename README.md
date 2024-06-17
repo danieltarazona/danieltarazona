@@ -30,8 +30,8 @@ PRIVATE repositories I've worked on:
 - <a href="https://Updater.com" target="blank">Updater</a>
 - <a href="https://Transcard.com" target="blank">Transcard</a>
 - <a href="https://CreditSesame.com" target="blank">CreditSesame</a>
-- <a href="https://Itau.com.uy" target="blank">Itau</a>
 - <a href="https://Overplay.com" target="blank">Overplay</a>
+- <a href="https://www.itau.com.uy/inst/" target="blank">Itau</a>
 - <a href="https://BIGG.fit" target="blank">BIGG</a>
 
 
