@@ -26,6 +26,6 @@ Here's a snapshot of some of the PUBLIC repositories I've worked on:
 - I know several programming languages but limited now to JavaScript, Python, C, ZSH and Bash plus all the Apple Stack.
 
 Previous worked on:
-- `Updater.com`, `Transcard.com`, `CreditSesame.com`, `[Itau.com](https://www.itau.com.uy/)`, `Overplay.com`, `[BIGG](https://bigg.fit/)`
+- `Updater.com`, `Transcard.com`, `CreditSesame.com`, `Itau.com.uy`, `Overplay.com`, `BIGG.fit`
 
 
