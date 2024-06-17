@@ -1,7 +1,9 @@
-# Daniel Tarazona - Senior iOS Engineer 👨‍💻
+# Daniel Tarazona 👨‍💻
 
-Hi there! I'm Daniel, a passionate Senior iOS Engineer. I specialize and know several programming languages but limited now to:
-C, C++, Swift, iOS, Python, FreeBSD and JavaScript, ZSH and Bash.
+Hi there! I'm Daniel, a passionate iOS / Game Engineer. 
+I specialize and know several technologies and programming languages but limited now to:
+C, C++, Swift, macOS, iOS, Python, FreeBSD and JavaScript, ZSH and Bash.
+Working for a MilTech company on weekdays and a powerful framework game engine at weekends.
 
 <h3 align="left">Connect with me:</h3>
 <p align="left">
@@ -9,13 +11,13 @@ C, C++, Swift, iOS, Python, FreeBSD and JavaScript, ZSH and Bash.
 </p>
 <a href="https://danieltarazona.com" target="blank">danieltarazona.com</a>
 
-## About Me
+<h3 align="left">About me:</h3>
 
 - 🌏 I frequently travel between Cali and Medellin and love exploring new places.
 - 💪 Outside of coding, I enjoy martial arts and have a keen interest in 3D modeling and video games.
 - 📚 I'm always looking to learn new programming langugages.
 
-## My Work
+<h3 align="left">My work:</h3>
 
 OWN PUBLIC repositories I've worked on:
 - `CinemaRappi`
@@ -30,8 +32,7 @@ OPEN SOURCE repositories collaborator and bug hunter of:
 
 PRIVATE repositories I've worked on:
 
-- Working for a MilTech company on weekdays.
-- Working on a POWERFUL and SECRET framework / game engine in C, C++, Swift, SwiftUI to conquer the IT world.
+
 
 - <a href="https://Updater.com" target="blank">Updater</a>
 - <a href="https://Transcard.com" target="blank">Transcard</a>
