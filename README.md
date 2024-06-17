@@ -25,7 +25,13 @@ Here's a snapshot of some of the PUBLIC repositories I've worked on:
 - Working on a POWERFUL and SECRET framework / game engine in C, C++, Swift, SwiftUI to conquer the IT world.
 - I know several programming languages but limited now to JavaScript, Python, C, ZSH and Bash plus all the Apple Stack.
 
-Previous worked on:
-- `https://www.Updater.com`, `Transcard.com`, `CreditSesame.com`, `Itau.com.uy`, `Overplay.com`, `BIGG.fit`
+PRIVATE repositories I've worked on:
+
+- <a href="https://Updater.com" target="blank">Updater</a>
+- <a href="https://Transcard.com" target="blank">Transcard</a>
+- <a href="https://CreditSesame.com" target="blank">CreditSesame</a>
+- <a href="https://Itau.com.uy" target="blank">Itau</a>
+- <a href="https://Overplay.com" target="blank">Overplay</a>
+- <a href="https://BIGG.fit" target="blank">BIGG</a>
 
 
