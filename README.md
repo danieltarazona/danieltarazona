@@ -1,7 +1,7 @@
 # Daniel Tarazona 👨‍💻
 
 Hi there! I'm Daniel, a passionate iOS / Game Engineer. 
-I specialize and know several technologies and programming languages but limited now to:
+I specialize in and know several technologies and programming languages but am limited now to:
 C, C++, Swift, macOS, iOS, Python, FreeBSD and JavaScript, ZSH and Bash.
 Working for a MilTech company on weekdays and a powerful framework game engine at weekends.
 
@@ -14,8 +14,8 @@ Working for a MilTech company on weekdays and a powerful framework game engine a
 <h3 align="left">About me:</h3>
 
 - 🌏 I frequently travel between Cali and Medellin and love exploring new places.
-- 💪 Outside of coding, I enjoy martial arts and have a keen interest in 3D modeling and video games.
-- 📚 I'm always looking to learn new programming langugages.
+- 💪 Outside of coding, I enjoy martial arts and am keenly interested in 3D modeling and video games.
+- 📚 I'm always looking to learn new programming languages.
 
 <h3 align="left">My work:</h3>
 
@@ -31,8 +31,6 @@ OPEN SOURCE repositories collaborator and bug hunter of:
 - `Racket`: Collaborator in some Lisp code for Windows.
 
 PRIVATE repositories I've worked on:
-
-
 
 - <a href="https://Updater.com" target="blank">Updater</a>
 - <a href="https://Transcard.com" target="blank">Transcard</a>
