@@ -19,15 +19,12 @@ Working for a MilTech company on weekdays and a powerful framework game engine a
 
 <h3 align="left">My work:</h3>
 
-OWN PUBLIC repositories I've worked on:
-- `CinemaRappi`
-
 OPEN SOURCE repositories collaborator and bug hunter of:
 
 - `SDL`: Collaborator in some Xcode and iOS code.
 - `Overpass`: Collaborator in some Python code.
 - `CouchBaseLite`: Collaborator in SDK for iOS.
-- `Raylib`: WIP. Collaborator in C and iOS support.
+- `Raylib`: Collaborator in C and iOS support.
 - `Racket`: Collaborator in some Lisp code for Windows.
 
 PRIVATE repositories I've worked on:
