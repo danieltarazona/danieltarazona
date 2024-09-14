@@ -1,4 +1,4 @@
-# <a href="https://danieltarazona.com"><h2>Daniel Tarazona</h2></a> 👨‍💻
+# <a href="https://danieltarazona.com"><h2>Daniel Tarazona 👨‍💻</h2></a> 
 
 <p>
 Hi there! I'm Daniel, a passionate iOS / Game Engineer. 
