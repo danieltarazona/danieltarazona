@@ -25,7 +25,7 @@ Working for a MilTech company on weekdays and a powerful framework game engine a
 
 <h3 align="left">My Open Source Work:</h3>
 
-OPEN SOURCE repositories collaborator and bug hunter of:
+<h4>OPEN SOURCE repositories collaborator and bug hunter of:</h4>
 
 - <a href="https://github.com/libsdl-org/SDL">`SDL`</a>: Collaborator in some Xcode and iOS code.
 - <a href="https://github.com/wiktorn/Overpass-API">`Overpass`</a>: Collaborator in some Python code.
@@ -33,12 +33,12 @@ OPEN SOURCE repositories collaborator and bug hunter of:
 - <a href="https://github.com/raysan5/raylib">`Raylib`</a>: Collaborator in C and iOS support.
 - <a href="https://github.com/racket/racket">`Racket`</a>: Collaborator in some Lisp code for Windows.
 
-PRIVATE repositories I'm working on:
+<h4>PRIVATE repositories I'm working on:</h4>
 
 - Luxury Brand
 - MilTech Company
 
-PAST PROJECTS I've worked on:
+<h4>PAST PROJECTS I've worked on:</h4>
 
 - <a href="https://Updater.com" target="blank">Updater</a>
 - <a href="https://Transcard.com" target="blank">Transcard</a>
