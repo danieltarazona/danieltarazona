@@ -12,14 +12,15 @@
 
 <p>
 Hi there! I'm Daniel, a passionate iOS/Game Engineer.
-I specialize in and have experience with several technologies and programming languages.
+I specialize in iOS development but have experience with several technologies and programming languages including:
 </p>
 
 <h3>Skills:</h3>
 <p>
-I specialize in and know several technologies and programming languages but am limited now to:
-C, C++, Swift, macOS, iOS, Python, JavaScript, Bash and ZSH.
-FreeBSD Daemon.
+Programming Languages: C, C++, Swift, macOS, iOS, Python, JavaScript, Bash and ZSH.
+OS: macOS and FreeBSD Daemon.
+Scripting: C# for Rhinoceros 3D. FreeCADScript. RhinoScript. BlenderScript.
+3D Modeling: Rhino3D, Blender, Revit.
 
 I work for a MilTech company on weekdays and develop a powerful framework for apps and game generation on weekends.
 </p>
