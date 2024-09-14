@@ -6,7 +6,7 @@
 </p>
 <a href="https://danieltarazona.com" target="blank">danieltarazona.com</a>
 
-<br/>
+<be></br>
 
 <p>
 Hi there! I'm Daniel, a passionate iOS / Game Engineer. 
