@@ -6,6 +6,8 @@
 </p>
 <a href="https://danieltarazona.com" target="blank">danieltarazona.com</a>
 
+<br/>
+
 <p>
 Hi there! I'm Daniel, a passionate iOS / Game Engineer. 
 I specialize in and know several technologies and programming languages but am limited now to:
