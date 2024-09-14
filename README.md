@@ -11,10 +11,17 @@
 <be></br>
 
 <p>
-Hi there! I'm Daniel, a passionate iOS / Game Engineer. 
+Hi there! I'm Daniel, a passionate iOS/Game Engineer.
+I specialize in and have experience with several technologies and programming languages.
+</p>
+
+<h3>Skills:</h3>
+<p>
 I specialize in and know several technologies and programming languages but am limited now to:
-C, C++, Swift, macOS, iOS, Python, FreeBSD and JavaScript, ZSH and Bash.
-Working for a MilTech company on weekdays and a powerful framework game engine at weekends.
+C, C++, Swift, macOS, iOS, Python, JavaScript, Bash and ZSH.
+FreeBSD Daemon.
+
+I work for a MilTech company on weekdays and develop a powerful framework for apps and game generation on weekends.
 </p>
 
 <h3 align="left">About me:</h3>
@@ -25,6 +32,11 @@ Working for a MilTech company on weekdays and a powerful framework game engine a
 
 <h3 align="left">My Open Source Work:</h3>
 
+<h4>PRIVATE repositories I'm working on:</h4>
+
+- Luxury Brand
+- MilTech Company
+
 <h4>OPEN SOURCE repositories collaborator and bug hunter of:</h4>
 
 - <a href="https://github.com/libsdl-org/SDL">`SDL`</a>: Collaborator in some Xcode and iOS code.
@@ -32,11 +44,6 @@ Working for a MilTech company on weekdays and a powerful framework game engine a
 - <a href="https://github.com/couchbase/couchbase-lite-ios"> `CouchBase Lite iOS`<a/>: Collaborator in SDK for iOS.
 - <a href="https://github.com/raysan5/raylib">`Raylib`</a>: Collaborator in C and iOS support.
 - <a href="https://github.com/racket/racket">`Racket`</a>: Collaborator in some Lisp code for Windows.
-
-<h4>PRIVATE repositories I'm working on:</h4>
-
-- Luxury Brand
-- MilTech Company
 
 <h4>PAST PROJECTS I've worked on:</h4>
 
