@@ -40,6 +40,7 @@ I work for a MilTech company on weekdays and develop a powerful framework for ap
 
 <h4>OPEN SOURCE repositories collaborator and bug hunter of:</h4>
 
+- <a href="https://github.com/jmorton06/Lumos">`Lumos`</a>: Collaborator in Lumos Engine for iOS Features.
 - <a href="https://github.com/libsdl-org/SDL">`SDL`</a>: Collaborator in some Xcode and iOS code.
 - <a href="https://github.com/wiktorn/Overpass-API">`Overpass`</a>: Collaborator in some Python code.
 - <a href="https://github.com/couchbase/couchbase-lite-ios"> `CouchBase Lite iOS`<a/>: Collaborator in SDK for iOS.
