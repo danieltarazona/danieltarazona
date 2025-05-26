@@ -1,59 +1,81 @@
-# <a href="https://danieltarazona.com"><h2>Daniel Tarazona 👨‍💻</h2></a> 
+<!-- Personal Website Header -->
+<h2>
+  <a href="https://danieltarazona.com" target="_blank" rel="noopener noreferrer">
+    Daniel Tarazona 👨‍💻
+  </a>
+</h2>
 
+<!-- Social Links -->
 <h3 align="left">Connect with me:</h3>
 <p align="left">
-  <a href="https://www.linkedin.com/in/danieltarazona" target="blank">
-<img align="center" src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/linked-in-alt.svg" alt="in/danieltarazona" height="30" width="40"/>
+  <a href="https://www.linkedin.com/in/danieltarazona" target="_blank" rel="noopener noreferrer">
+    <img 
+      src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/linked-in-alt.svg" 
+      alt="Daniel Tarazona on LinkedIn" 
+      height="30" 
+      width="40"
+    />
   </a>
 </p>
-<a href="https://danieltarazona.com" target="blank">danieltarazona.com</a>
-
-<be></br>
 
 <p>
-Hi there! I'm Daniel, a passionate iOS/Game Engineer.
-I specialize in iOS development but have experience with several technologies and programming languages including:
+  🔗 <a href="https://danieltarazona.com" target="_blank" rel="noopener noreferrer">danieltarazona.com</a>
 </p>
 
+<br />
+
+<!-- Introduction -->
+<p>
+  Hi there! I'm <strong>Daniel</strong>, a passionate iOS/Game Engineer.<br />
+  I specialize in iOS development and also have experience with various technologies and programming languages including:
+</p>
+
+<!-- Skills Section -->
 <h3>Skills:</h3>
-<p>
-Programming Languages: C, C++, Swift, macOS, iOS, Python, JavaScript, Bash and ZSH.
-OS: macOS and FreeBSD Daemon.
-Scripting: C# for Rhinoceros 3D. FreeCADScript. RhinoScript. BlenderScript.
-3D Modeling: Rhino3D, Blender, Revit.
+<ul>
+  <li><strong>Programming Languages:</strong> C, C++, Swift, Python, JavaScript, Bash, ZSH</li>
+  <li><strong>OS:</strong> macOS, FreeBSD</li>
+  <li><strong>Scripting:</strong> C# (Rhinoceros 3D), FreeCADScript, RhinoScript, BlenderScript</li>
+  <li><strong>3D Modeling Tools:</strong> Rhino3D, Blender, Revit</li>
+</ul>
 
-I work for a MilTech company on weekdays and develop a powerful framework for apps and game generation on weekends.
+<p>
+  I work for a MilTech company on weekdays and spend weekends developing a powerful framework for apps and game generation.
 </p>
 
-<h3 align="left">About me:</h3>
+<!-- About Me -->
+<h3>About Me:</h3>
+<ul>
+  <li>🌏 I frequently travel between Medellín and Cali and love exploring new cities and countries.</li>
+  <li>💪 I'm passionate about Martial Arts and 3D modeling. I enjoy both AAA and indie game development with Unreal Engine 5.</li>
+  <li>📚 Lifelong learner of new programming languages, frameworks, and libraries.</li>
+</ul>
 
-- 🌏 I frequently travel between Medellin and Cali and love exploring new cities and countries.
-- 💪 Outside of coding, I enjoy Martial Arts and am keenly interested in 3D modeling, AAA, and indie video game development using Unreal Engine 5.
-- 📚 I'm always looking to learn new programming languages, frameworks and libs.
+<!-- Open Source Contributions -->
+<h3>My Open Source Work:</h3>
 
-<h3 align="left">My Open Source Work:</h3>
+<h4>Private Projects:</h4>
+<ul>
+  <li>Luxury Brand</li>
+  <li>MilTech Company</li>
+</ul>
 
-<h4>PRIVATE repositories I'm working on:</h4>
+<h4>Open Source Collaborations:</h4>
+<ul>
+  <li><a href="https://github.com/jmorton06/Lumos" target="_blank" rel="noopener noreferrer"><code>Lumos</code></a>: iOS feature contributions to the Lumos Engine</li>
+  <li><a href="https://github.com/libsdl-org/SDL" target="_blank" rel="noopener noreferrer"><code>SDL</code></a>: Xcode and iOS contributions</li>
+  <li><a href="https://github.com/wiktorn/Overpass-API" target="_blank" rel="noopener noreferrer"><code>Overpass</code></a>: Python contributions</li>
+  <li><a href="https://github.com/couchbase/couchbase-lite-ios" target="_blank" rel="noopener noreferrer"><code>CouchBase Lite iOS</code></a>: SDK improvements</li>
+  <li><a href="https://github.com/raysan5/raylib" target="_blank" rel="noopener noreferrer"><code>Raylib</code></a>: Contributions in C and iOS support</li>
+  <li><a href="https://github.com/racket/racket" target="_blank" rel="noopener noreferrer"><code>Racket</code></a>: Lisp contributions for Windows</li>
+</ul>
 
-- Luxury Brand
-- MilTech Company
-
-<h4>OPEN SOURCE repositories collaborator and bug hunter of:</h4>
-
-- <a href="https://github.com/jmorton06/Lumos">`Lumos`</a>: Collaborator in Lumos Engine for iOS Features.
-- <a href="https://github.com/libsdl-org/SDL">`SDL`</a>: Collaborator in some Xcode and iOS code.
-- <a href="https://github.com/wiktorn/Overpass-API">`Overpass`</a>: Collaborator in some Python code.
-- <a href="https://github.com/couchbase/couchbase-lite-ios"> `CouchBase Lite iOS`<a/>: Collaborator in SDK for iOS.
-- <a href="https://github.com/raysan5/raylib">`Raylib`</a>: Collaborator in C and iOS support.
-- <a href="https://github.com/racket/racket">`Racket`</a>: Collaborator in some Lisp code for Windows.
-
-<h4>PAST PROJECTS I've worked on:</h4>
-
-- <a href="https://Updater.com" target="blank">Updater</a>
-- <a href="https://Transcard.com" target="blank">Transcard</a>
-- <a href="https://CreditSesame.com" target="blank">CreditSesame</a>
-- <a href="https://Overplay.com" target="blank">Overplay</a>
-- <a href="https://www.itau.com.uy/inst/" target="blank">Itau</a>
-- <a href="https://BIGG.fit" target="blank">BIGG</a>
-
-
+<h4>Past Projects:</h4>
+<ul>
+  <li><a href="https://Updater.com" target="_blank" rel="noopener noreferrer">Updater</a></li>
+  <li><a href="https://Transcard.com" target="_blank" rel="noopener noreferrer">Transcard</a></li>
+  <li><a href="https://CreditSesame.com" target="_blank" rel="noopener noreferrer">Credit Sesame</a></li>
+  <li><a href="https://Overplay.com" target="_blank" rel="noopener noreferrer">Overplay</a></li>
+  <li><a href="https://www.itau.com.uy/inst/" target="_blank" rel="noopener noreferrer">Itau</a></li>
+  <li><a href="https://BIGG.fit" target="_blank" rel="noopener noreferrer">BIGG</a></li>
+</ul>
