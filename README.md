@@ -65,7 +65,7 @@
   <li><a href="https://github.com/jmorton06/Lumos" target="_blank" rel="noopener noreferrer"><code>Lumos</code></a>: iOS feature contributions to the Lumos Engine</li>
   <li><a href="https://github.com/libsdl-org/SDL" target="_blank" rel="noopener noreferrer"><code>SDL</code></a>: Xcode and iOS contributions</li>
   <li><a href="https://github.com/wiktorn/Overpass-API" target="_blank" rel="noopener noreferrer"><code>Overpass</code></a>: Python contributions</li>
-  <li><a href="https://github.com/couchbase/couchbase-lite-ios" target="_blank" rel="noopener noreferrer"><code>CouchBase Lite iOS</code></a>: SDK improvements</li>
+  <li><a href="https://github.com/couchbaselabs/couchbase-lite-swift-coder" target="_blank" rel="noopener noreferrer"><code>CouchBase Lite Swift Coder</code></a>: SDK Improvements</li>
   <li><a href="https://github.com/raysan5/raylib" target="_blank" rel="noopener noreferrer"><code>Raylib</code></a>: Contributions in C and iOS support</li>
   <li><a href="https://github.com/racket/racket" target="_blank" rel="noopener noreferrer"><code>Racket</code></a>: Lisp contributions for Windows</li>
 </ul>
