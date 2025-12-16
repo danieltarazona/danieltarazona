@@ -157,12 +157,25 @@ echo "[ SYSTEM ] Martial arts enthusiast | 3D modeling hobbyist"
 
 ## 🌐 `> git log --oneline --open-source`
 
+### 🎮 Latest: OpenParsec iOS/iPadOS Full Compatibility
+
+[![OpenParsec PR](https://img.shields.io/badge/PR%20%2341-Open-00FF00?style=for-the-badge&logo=github)](https://github.com/hugeBlack/OpenParsec/pull/41)
+
+> 🕹️ **Full iOS & iPadOS compatibility with ProMotion support**
+>
+> Comprehensive update delivering: smoother UX with proper Apple keyboard layouts, optimized UI interactions, significantly faster and more precise gesture/mouse performance, enhanced app efficiency, and full Spanish keyboard support.
+>
+> *Yes, you can also play Unity games.* 🎮
+
+---
+
 ### Merged Pull Requests & Contributions
 
 ```diff
++ [OpenParsec] Full iOS/iPadOS compatibility + ProMotion support (PR #41)
++ [Lumos]      iOS feature contributions to game engine
 + [SDL]        Xcode project fixes & iOS Metal support
 + [Raylib]     iOS platform enhancements & C optimizations
-+ [Lumos]      iOS feature contributions to game engine
 + [Overpass]   Python API improvements
 + [CouchBase]  Swift SDK enhancements
 + [Racket]     Lisp contributions for Windows platform
@@ -173,9 +186,10 @@ echo "[ SYSTEM ] Martial arts enthusiast | 3D modeling hobbyist"
 
 | Repository | Contribution | Status |
 |------------|-------------|--------|
+| [hugeBlack/OpenParsec](https://github.com/hugeBlack/OpenParsec/pull/41) | Full iOS/iPadOS + ProMotion + Spanish keyboard | 🟡 Open |
+| [jmorton06/Lumos](https://github.com/jmorton06/Lumos) | iOS features for game engine | ✅ Merged |
 | [libsdl-org/SDL](https://github.com/libsdl-org/SDL) | Xcode & iOS contributions | ✅ Merged |
 | [raysan5/raylib](https://github.com/raysan5/raylib) | C & iOS support | ✅ Merged |
-| [jmorton06/Lumos](https://github.com/jmorton06/Lumos) | iOS features for game engine | ✅ Merged |
 | [wiktorn/Overpass-API](https://github.com/wiktorn/Overpass-API) | Python improvements | ✅ Merged |
 | [couchbaselabs/couchbase-lite-swift-coder](https://github.com/couchbaselabs/couchbase-lite-swift-coder) | SDK improvements | ✅ Merged |
 | [racket/racket](https://github.com/racket/racket) | Windows Lisp contributions | ✅ Merged |
@@ -244,7 +258,6 @@ membership = "ACM Professional Member"
 [![Website](https://img.shields.io/badge/🌐_danieltarazona.com-000000?style=for-the-badge)](https://danieltarazona.com)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/danieltarazona)
 [![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/danieltarazona)
-[![Email](https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:shiftcipher@hotmail.com)
 
 </div>
 
