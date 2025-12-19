@@ -173,6 +173,177 @@ The following diagram illustrates how data flows between services in the archite
   - [ ] Order management
   - [ ] Inventory tracking
 
+### Categorized Feature List
+
+The following comprehensive feature list categorizes all planned features by priority level and type. Use this as a tracking checklist throughout the project.
+
+#### Priority Level Definitions
+
+| Priority | Label | Description | SLA |
+|----------|-------|-------------|-----|
+| **P0** | Critical | Must-have features for MVP launch. Project cannot go live without these. | Must complete |
+| **P1** | Important | High-value features that significantly enhance the product. Should be included if time permits. | Should complete |
+| **P2** | Nice-to-Have | Optional enhancements that add polish. Can be deferred to post-launch. | Could complete |
+
+---
+
+#### 🎯 P0: Required Features (MVP)
+
+These features are **critical** for the initial launch. The project cannot be considered complete without them.
+
+##### Portfolio Site (`danieltarazona.com`) - P0
+
+| # | Feature | Description | Status | Dependencies |
+|---|---------|-------------|--------|--------------|
+| P0-01 | **Photo Gallery** | Responsive image gallery with lazy loading, lightbox view, and optimized WebP/AVIF images | [ ] | Astro, Cloudflare Images |
+| P0-02 | **About Page** | Professional bio page with headshot, skills, experience timeline, and social links | [ ] | Astro |
+| P0-03 | **Contact Form** | Functional contact form with validation, spam protection, and PostgreSQL persistence | [ ] | Supabase, Edge Functions |
+| P0-04 | **Form Notifications** | Email notifications on form submission (to admin) and confirmation (to user) | [ ] | Supabase Edge Functions, SMTP |
+| P0-05 | **Responsive Design** | Mobile-first responsive layout working on all screen sizes (320px to 4K) | [ ] | CSS/Tailwind |
+| P0-06 | **SEO Optimization** | Meta tags, Open Graph, Twitter Cards, JSON-LD structured data, canonical URLs | [ ] | Astro SEO |
+| P0-07 | **Core Pages** | Home, About, Gallery, Contact pages with consistent navigation | [ ] | Astro |
+| P0-08 | **SSL/HTTPS** | Full SSL encryption via Cloudflare with HTTP/2 and HSTS | [ ] | Cloudflare |
+| P0-09 | **Performance Baseline** | Lighthouse score ≥90 on all Core Web Vitals (LCP, FID, CLS) | [ ] | Build optimization |
+| P0-10 | **Deployment Pipeline** | Automated deployment to Cloudflare Pages on git push | [ ] | GitHub Actions |
+
+##### E-Commerce Store (`store.danieltarazona.com`) - P0
+
+| # | Feature | Description | Status | Dependencies |
+|---|---------|-------------|--------|--------------|
+| P0-11 | **Product Catalog** | Display up to 100 products with images, descriptions, pricing, and variants | [ ] | Medusa 2.0, Astro |
+| P0-12 | **Product Detail Pages** | Individual product pages with gallery, descriptions, variant selection | [ ] | Medusa 2.0, Astro |
+| P0-13 | **Shopping Cart** | Persistent cart with add/remove items, quantity updates, and total calculation | [ ] | Medusa 2.0 Store API |
+| P0-14 | **Checkout Flow** | Multi-step checkout with shipping address, shipping method, and payment | [ ] | Medusa 2.0 |
+| P0-15 | **Payment Processing** | Secure payment integration (Stripe/PayPal) with PCI compliance | [ ] | Medusa Payment Providers |
+| P0-16 | **Order Confirmation** | Order confirmation page and email notification | [ ] | Medusa 2.0 |
+| P0-17 | **Inventory Management** | Real-time inventory tracking to prevent overselling | [ ] | Medusa 2.0 Admin |
+| P0-18 | **Admin Dashboard** | Medusa admin panel for product, order, and inventory management | [ ] | Medusa 2.0 Admin |
+| P0-19 | **Secure Backend** | Cloudflare Tunnel for Medusa API without exposing ports | [ ] | Cloudflare Tunnel |
+| P0-20 | **Database Backups** | Automated PostgreSQL backups with retention policy | [ ] | Coolify, pg_dump |
+
+---
+
+#### 🔶 P1: Important Features (Post-MVP High Priority)
+
+These features are **important** for a complete product experience. Implement after MVP launch or if time permits.
+
+##### Portfolio Site (`danieltarazona.com`) - P1
+
+| # | Feature | Description | Status | Dependencies |
+|---|---------|-------------|--------|--------------|
+| P1-01 | **Blog/Articles** | Markdown-based blog with categories, tags, and RSS feed | [ ] | Astro Content Collections |
+| P1-02 | **Project Showcase** | Portfolio of projects with case studies, tech stack, and live demos | [ ] | Astro |
+| P1-03 | **Resume/CV Page** | Downloadable PDF resume with online version | [ ] | Astro |
+| P1-04 | **Dark Mode** | System-preference-aware dark/light theme toggle | [ ] | CSS/JavaScript |
+| P1-05 | **Search Functionality** | Client-side search across gallery and blog content | [ ] | Pagefind/Fuse.js |
+| P1-06 | **Image Categories** | Filter gallery by categories/albums/tags | [ ] | Astro |
+| P1-07 | **Animation & Transitions** | Subtle page transitions and micro-interactions | [ ] | View Transitions API |
+| P1-08 | **404 Custom Page** | Branded 404 error page with navigation back to site | [ ] | Astro |
+| P1-09 | **Sitemap Generation** | Automatic XML sitemap generation for SEO | [ ] | @astrojs/sitemap |
+| P1-10 | **robots.txt** | SEO-optimized robots.txt with sitemap reference | [ ] | Astro |
+
+##### E-Commerce Store (`store.danieltarazona.com`) - P1
+
+| # | Feature | Description | Status | Dependencies |
+|---|---------|-------------|--------|--------------|
+| P1-11 | **Product Search** | Full-text search across products with filters | [ ] | Medusa 2.0, MeiliSearch |
+| P1-12 | **Product Reviews** | Customer reviews and ratings system | [ ] | Medusa Plugin/Custom |
+| P1-13 | **Wishlist** | Save products for later functionality | [ ] | Medusa 2.0 |
+| P1-14 | **Customer Accounts** | User registration, login, order history, saved addresses | [ ] | Medusa 2.0 Auth |
+| P1-15 | **Order Tracking** | Order status updates and shipment tracking | [ ] | Medusa 2.0 |
+| P1-16 | **Email Templates** | Branded transactional emails (order, shipping, etc.) | [ ] | Medusa 2.0, SendGrid |
+| P1-17 | **Discount Codes** | Promotional codes and percentage/fixed discounts | [ ] | Medusa 2.0 |
+| P1-18 | **Multiple Currencies** | Support for multiple currencies (USD, EUR, etc.) | [ ] | Medusa 2.0 |
+| P1-19 | **Tax Calculation** | Automatic tax calculation by region | [ ] | Medusa 2.0 |
+| P1-20 | **Shipping Zones** | Multiple shipping options and zone-based pricing | [ ] | Medusa 2.0 |
+
+---
+
+#### 🟢 P2: Nice-to-Have Features (Future Enhancements)
+
+These features are **optional** enhancements that can be implemented post-launch for added value.
+
+##### Portfolio Site (`danieltarazona.com`) - P2
+
+| # | Feature | Description | Status | Dependencies |
+|---|---------|-------------|--------|--------------|
+| P2-01 | **Newsletter Signup** | Email subscription form with double opt-in and Supabase storage | [ ] | Supabase, Mailchimp/ConvertKit |
+| P2-02 | **Analytics Dashboard** | Privacy-friendly analytics (Plausible/Umami) integration | [ ] | Self-hosted or SaaS |
+| P2-03 | **Comments System** | Blog comments with moderation (Giscus/Utterances) | [ ] | GitHub Discussions |
+| P2-04 | **Social Sharing** | Share buttons for social media platforms | [ ] | JavaScript |
+| P2-05 | **Reading Progress** | Reading progress indicator for blog posts | [ ] | JavaScript |
+| P2-06 | **Table of Contents** | Auto-generated TOC for long-form content | [ ] | Astro/rehype |
+| P2-07 | **Print Styles** | Optimized print stylesheet for articles | [ ] | CSS |
+| P2-08 | **Internationalization** | Multi-language support (i18n) | [ ] | Astro i18n |
+| P2-09 | **PWA Support** | Progressive Web App with offline support | [ ] | Service Worker |
+| P2-10 | **Accessibility Audit** | WCAG 2.1 AA compliance verification | [ ] | Manual + Automated |
+
+##### E-Commerce Store (`store.danieltarazona.com`) - P2
+
+| # | Feature | Description | Status | Dependencies |
+|---|---------|-------------|--------|--------------|
+| P2-11 | **Product Recommendations** | "You might also like" product suggestions | [ ] | Custom Algorithm |
+| P2-12 | **Recently Viewed** | Display recently viewed products | [ ] | Local Storage |
+| P2-13 | **Gift Cards** | Digital gift card purchasing and redemption | [ ] | Medusa 2.0 |
+| P2-14 | **Abandoned Cart Emails** | Automated emails for abandoned shopping carts | [ ] | Medusa 2.0, Email Service |
+| P2-15 | **Product Bundles** | Bundle products together for discounts | [ ] | Custom Medusa Module |
+| P2-16 | **Stock Notifications** | Email alerts when out-of-stock items return | [ ] | Medusa 2.0, Email Service |
+| P2-17 | **Order Notes** | Allow customers to add notes to orders | [ ] | Medusa 2.0 |
+| P2-18 | **Invoice Generation** | PDF invoice generation for orders | [ ] | Medusa 2.0, PDF Library |
+| P2-19 | **Advanced Analytics** | Sales reports, conversion tracking, revenue metrics | [ ] | Medusa 2.0 Admin |
+| P2-20 | **A/B Testing** | Product page and checkout flow A/B testing | [ ] | Cloudflare Workers |
+
+---
+
+#### Infrastructure & DevOps Features
+
+| Priority | # | Feature | Description | Status |
+|----------|---|---------|-------------|--------|
+| P0 | I-01 | **Cloudflare DNS** | DNS management with proxy enabled | [ ] |
+| P0 | I-02 | **Cloudflare Pages** | Static site hosting for Astro sites | [ ] |
+| P0 | I-03 | **Cloudflare Tunnel** | Secure tunnel for Medusa backend | [ ] |
+| P0 | I-04 | **SSL/TLS Certificates** | Automatic SSL certificate management | [ ] |
+| P0 | I-05 | **PostgreSQL Database** | Supabase for portfolio, local for Medusa | [ ] |
+| P1 | I-06 | **GitHub Actions CI/CD** | Automated testing and deployment | [ ] |
+| P1 | I-07 | **Coolify Orchestration** | Container management for VPS | [ ] |
+| P1 | I-08 | **Monitoring & Alerts** | Uptime monitoring and incident alerts | [ ] |
+| P2 | I-09 | **Staging Environment** | Preview deployments for testing | [ ] |
+| P2 | I-10 | **Log Aggregation** | Centralized logging for debugging | [ ] |
+
+---
+
+#### Feature Progress Summary
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              FEATURE IMPLEMENTATION PROGRESS                             │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                          │
+│  PRIORITY BREAKDOWN                          CATEGORY BREAKDOWN                          │
+│  ──────────────────                          ──────────────────                          │
+│                                                                                          │
+│  P0 (Required):     20 features              Portfolio Site:    30 features             │
+│  P1 (Important):    20 features              E-Commerce Store:  30 features             │
+│  P2 (Nice-to-Have): 20 features              Infrastructure:    10 features             │
+│  Infrastructure:    10 features                                                          │
+│  ─────────────────────────────               ─────────────────────────────               │
+│  TOTAL:             70 features              TOTAL:             70 features             │
+│                                                                                          │
+│  MVP SCOPE: 20 P0 features + 10 Infrastructure = 30 features minimum                    │
+│                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Implementation Order Recommendation
+
+For efficient development, implement features in this order:
+
+1. **Sprint 1 (MVP Core)**: Infrastructure (I-01 to I-05), then P0-01 to P0-10 (Portfolio)
+2. **Sprint 2 (MVP Store)**: P0-11 to P0-20 (E-Commerce essentials)
+3. **Sprint 3 (Enhancement)**: P1-01 to P1-10 (Portfolio improvements)
+4. **Sprint 4 (Store Polish)**: P1-11 to P1-20 (E-Commerce enhancements)
+5. **Sprint 5+ (Post-Launch)**: P2 features based on user feedback and analytics
+
 ### Success Metrics
 
 | Metric | Target | Measurement |
