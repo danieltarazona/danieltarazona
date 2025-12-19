@@ -1,0 +1,10 @@
+{
+  "discovered_files": {
+    "ROADMAP.md": {
+      "description": "Vendure vs Medusa 2.0 comparison section added at end of document (lines 3401-3720). Comprehensive analysis for multi-brand/multi-domain scenarios comparing native multi-channel support, REST vs GraphQL APIs, architecture diagrams, infrastructure costs, and clear recommendations: Vendure for Adam multi-brand expansion (native channels, unified admin, lower cost), Medusa for single-store danieltarazona.com (simpler setup, REST familiarity).",
+      "category": "documentation",
+      "discovered_at": "2025-12-19T17:25:40.935659+00:00"
+    }
+  },
+  "last_updated": "2025-12-19T17:25:40.935673+00:00"
+}

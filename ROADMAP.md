@@ -10356,4 +10356,858 @@ This section covers setting up Cloudflare Workers for serverless functions at th
 
 ---
 
+## Phase 5: Deployment & Orchestration
+
+This phase covers the setup and configuration of Coolify as a self-hosted deployment platform for managing Medusa 2.0 backend services on your VPS. Coolify provides a user-friendly interface for container orchestration, environment management, and automated deployments.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                         COOLIFY DEPLOYMENT ARCHITECTURE                                  │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+                              ┌─────────────────┐
+                              │   GitHub Repo   │
+                              │  (Source Code)  │
+                              └────────┬────────┘
+                                       │ Webhook / Push
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              VPS (Hetzner / Oracle Cloud)                                │
+│  ┌───────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                              COOLIFY PLATFORM                                      │  │
+│  │  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐               │  │
+│  │  │   Dashboard     │    │   Build Engine  │    │   Traefik       │               │  │
+│  │  │   (Port 8000)   │    │   (Nixpacks)    │    │   (Reverse Proxy)│              │  │
+│  │  └─────────────────┘    └─────────────────┘    └─────────────────┘               │  │
+│  │           │                      │                      │                         │  │
+│  │           └──────────────────────┼──────────────────────┘                         │  │
+│  │                                  │                                                 │  │
+│  │                    ┌─────────────┴─────────────┐                                  │  │
+│  │                    │      Docker Engine         │                                  │  │
+│  │                    └─────────────┬─────────────┘                                  │  │
+│  │                                  │                                                 │  │
+│  │     ┌────────────────────────────┼────────────────────────────┐                   │  │
+│  │     │                            │                            │                   │  │
+│  │     ▼                            ▼                            ▼                   │  │
+│  │  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐               │  │
+│  │  │  Medusa 2.0     │    │   PostgreSQL    │    │     Redis       │               │  │
+│  │  │  (Backend API)  │    │   (Database)    │    │   (Cache/Queue) │               │  │
+│  │  │  Port: 9000     │    │   Port: 5432    │    │   Port: 6379    │               │  │
+│  │  └─────────────────┘    └─────────────────┘    └─────────────────┘               │  │
+│  └───────────────────────────────────────────────────────────────────────────────────┘  │
+│                                       │                                                  │
+│                                       │ Cloudflare Tunnel (cloudflared)                 │
+│                                       ▼                                                  │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+                                       │
+                                       ▼
+                        ┌──────────────────────────────┐
+                        │    Cloudflare Edge Network   │
+                        │  (CDN + SSL + DDoS + WAF)    │
+                        └──────────────────────────────┘
+                                       │
+              ┌────────────────────────┼────────────────────────┐
+              ▼                        ▼                        ▼
+    ┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
+    │ store.daniel... │      │ admin.daniel... │      │ api.daniel...   │
+    │ (Storefront)    │      │ (Medusa Admin)  │      │ (REST API)      │
+    └─────────────────┘      └─────────────────┘      └─────────────────┘
+```
+
+### Why Coolify?
+
+| Feature | Description | Benefit |
+|---------|-------------|---------|
+| **Self-Hosted** | Run on your own VPS | Full data ownership, no vendor lock-in |
+| **Docker Native** | Built on Docker/Docker Compose | Industry-standard containerization |
+| **Git Integration** | Connect to GitHub/GitLab/Bitbucket | Automated deployments on push |
+| **Zero-Config SSL** | Automatic Let's Encrypt certificates | Secure by default |
+| **Multi-Service** | Deploy multiple services per project | Microservices support |
+| **Database Management** | One-click PostgreSQL, MySQL, Redis | Easy database provisioning |
+| **Environment Variables** | Secure secrets management | No env files in repos |
+| **Logs & Monitoring** | Real-time logs and metrics | Debugging and observability |
+| **Backup Integration** | Scheduled database backups | Data protection |
+| **Cost-Effective** | Open source, pay only for VPS | ~$5-20/month total |
+
+### Task 6.1: Coolify Installation and Configuration
+
+#### Task 6.1.1: VPS Prerequisites
+
+- [ ] **Task 6.1.1**: Prepare VPS for Coolify installation
+
+  **Minimum Requirements:**
+
+  | Resource | Minimum | Recommended | Notes |
+  |----------|---------|-------------|-------|
+  | RAM | 2 GB | 4 GB | For Coolify + Medusa + PostgreSQL |
+  | CPU | 1 vCPU | 2 vCPU | More for build processes |
+  | Storage | 30 GB | 60 GB | SSD recommended |
+  | OS | Ubuntu 22.04+ | Ubuntu 24.04 LTS | Debian 12 also supported |
+  | Network | IPv4 required | IPv4 + IPv6 | Cloudflare handles DNS |
+
+  **Initial VPS Setup (Run as Root):**
+
+  ```bash
+  # Update system packages
+  apt update && apt upgrade -y
+
+  # Install essential tools
+  apt install -y curl wget git htop nano ufw
+
+  # Configure firewall (minimal ports - Cloudflare Tunnel handles ingress)
+  ufw default deny incoming
+  ufw default allow outgoing
+  ufw allow 22/tcp  # SSH (consider changing default port)
+  ufw allow 8000/tcp  # Coolify Dashboard (temporary, can be tunneled)
+  ufw enable
+
+  # Create non-root user for operations
+  adduser deploy
+  usermod -aG sudo deploy
+  usermod -aG docker deploy  # After Docker installation
+
+  # Configure SSH key authentication (copy your public key)
+  mkdir -p /home/deploy/.ssh
+  # Add your public key to /home/deploy/.ssh/authorized_keys
+  chmod 700 /home/deploy/.ssh
+  chmod 600 /home/deploy/.ssh/authorized_keys
+  chown -R deploy:deploy /home/deploy/.ssh
+
+  # Disable password authentication (security hardening)
+  sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+  systemctl restart sshd
+  ```
+
+  **Swap Configuration (Recommended for 2GB VPS):**
+
+  ```bash
+  # Create 2GB swap file
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+
+  # Make swap permanent
+  echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
+
+  # Optimize swap settings
+  echo 'vm.swappiness=10' | tee -a /etc/sysctl.conf
+  sysctl -p
+  ```
+
+#### Task 6.1.2: Docker Installation
+
+- [ ] **Task 6.1.2**: Install Docker Engine and Docker Compose
+
+  **Automated Docker Installation (Recommended):**
+
+  ```bash
+  # Install Docker using official script
+  curl -fsSL https://get.docker.com | sh
+
+  # Add current user to docker group
+  sudo usermod -aG docker $USER
+
+  # Apply group changes (or log out and back in)
+  newgrp docker
+
+  # Verify installation
+  docker --version
+  docker compose version
+
+  # Enable Docker to start on boot
+  sudo systemctl enable docker
+  sudo systemctl start docker
+
+  # Test Docker installation
+  docker run hello-world
+  ```
+
+  **Docker Configuration (Optional but Recommended):**
+
+  ```bash
+  # Create Docker daemon configuration
+  sudo mkdir -p /etc/docker
+  sudo tee /etc/docker/daemon.json <<EOF
+  {
+    "log-driver": "json-file",
+    "log-opts": {
+      "max-size": "10m",
+      "max-file": "3"
+    },
+    "storage-driver": "overlay2",
+    "default-address-pools": [
+      {
+        "base": "172.17.0.0/16",
+        "size": 24
+      }
+    ]
+  }
+  EOF
+
+  # Restart Docker to apply changes
+  sudo systemctl restart docker
+  ```
+
+#### Task 6.1.3: Coolify Installation
+
+- [ ] **Task 6.1.3**: Install Coolify self-hosted platform
+
+  **One-Line Installation (Recommended):**
+
+  ```bash
+  # Run Coolify installer as root
+  curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+  ```
+
+  **What the Installer Does:**
+  1. Checks system requirements (Docker, etc.)
+  2. Creates Coolify directories (`/data/coolify`)
+  3. Downloads and starts Coolify containers
+  4. Sets up internal SQLite database
+  5. Configures Traefik reverse proxy
+  6. Generates initial admin credentials
+
+  **Manual Installation (Alternative):**
+
+  ```bash
+  # Create Coolify directories
+  mkdir -p /data/coolify/{source,ssh,applications,databases,backups,services,proxy,webhooks-during-maintenance}
+  mkdir -p /data/coolify/ssh/{keys,mux}
+  mkdir -p /data/coolify/proxy/dynamic
+
+  # Clone Coolify repository
+  git clone https://github.com/coollabsio/coolify.git /data/coolify/source
+
+  # Copy environment file
+  cp /data/coolify/source/.env.example /data/coolify/source/.env
+
+  # Generate application key
+  cd /data/coolify/source
+  docker compose up -d
+  ```
+
+  **Post-Installation Verification:**
+
+  ```bash
+  # Check Coolify containers are running
+  docker ps --filter "name=coolify"
+
+  # Expected containers:
+  # - coolify (Main application)
+  # - coolify-proxy (Traefik)
+  # - coolify-realtime (WebSocket for real-time updates)
+  # - coolify-db (SQLite via Soketi)
+
+  # View Coolify logs
+  docker logs coolify -f --tail 100
+
+  # Check Coolify version
+  docker exec coolify php artisan about
+  ```
+
+#### Task 6.1.4: Initial Coolify Configuration
+
+- [ ] **Task 6.1.4**: Complete Coolify initial setup via web interface
+
+  **Access Coolify Dashboard:**
+
+  ```
+  URL: http://<your-vps-ip>:8000
+
+  # Or if using Cloudflare Tunnel:
+  URL: https://coolify.danieltarazona.com
+  ```
+
+  **Initial Setup Steps:**
+
+  1. **Create Admin Account**
+     - Email: `admin@danieltarazona.com`
+     - Password: Use a strong, unique password
+     - Store credentials securely in password manager
+
+  2. **Add Server**
+     - Go to: Servers → Add Server
+     - Type: `Localhost` (for single VPS setup)
+     - Connection: Docker socket
+     - Coolify will validate the connection
+
+  3. **Configure Default Settings**
+     - Settings → General
+       - Instance Name: `danieltarazona-production`
+       - Public Domain: `coolify.danieltarazona.com`
+       - Timezone: `America/Lima` (or your timezone)
+
+  4. **Setup Wildcard Domain (Optional)**
+     - Settings → Domains
+     - Add wildcard: `*.danieltarazona.com`
+     - Required for automatic subdomain routing
+
+#### Task 6.1.5: Git Source Configuration
+
+- [ ] **Task 6.1.5**: Connect GitHub repository to Coolify
+
+  **Method 1: GitHub App (Recommended)**
+
+  1. Go to: Sources → Add Source → GitHub App
+  2. Click "Register GitHub App"
+  3. Name: `coolify-danieltarazona`
+  4. Select repositories to access
+  5. Complete OAuth authorization
+
+  **Method 2: Deploy Keys**
+
+  ```bash
+  # Generate SSH key pair for Coolify
+  ssh-keygen -t ed25519 -C "coolify@danieltarazona.com" -f ~/.ssh/coolify_deploy
+
+  # Copy public key
+  cat ~/.ssh/coolify_deploy.pub
+  ```
+
+  1. Add public key as Deploy Key in GitHub repository settings
+  2. In Coolify: Sources → Add Source → Deploy Key
+  3. Paste private key content
+
+  **Method 3: Personal Access Token**
+
+  1. GitHub → Settings → Developer settings → Personal access tokens
+  2. Generate token with `repo` scope
+  3. In Coolify: Sources → Add Source → GitHub → Token
+
+#### Task 6.1.6: Create Medusa 2.0 Application
+
+- [ ] **Task 6.1.6**: Deploy Medusa 2.0 backend via Coolify
+
+  **Project Structure in GitHub:**
+
+  ```
+  medusa-backend/
+  ├── src/
+  │   ├── api/
+  │   ├── modules/
+  │   ├── workflows/
+  │   └── subscribers/
+  ├── medusa-config.ts
+  ├── package.json
+  ├── Dockerfile
+  └── docker-compose.yml
+  ```
+
+  **Dockerfile for Medusa 2.0:**
+
+  ```dockerfile
+  # Multi-stage build for production
+  FROM node:20-alpine AS builder
+
+  WORKDIR /app
+
+  # Install dependencies
+  COPY package*.json ./
+  RUN npm ci
+
+  # Copy source and build
+  COPY . .
+  RUN npm run build
+
+  # Production stage
+  FROM node:20-alpine AS production
+
+  WORKDIR /app
+
+  # Install production dependencies only
+  COPY package*.json ./
+  RUN npm ci --only=production
+
+  # Copy built application
+  COPY --from=builder /app/dist ./dist
+  COPY --from=builder /app/medusa-config.ts ./
+  COPY --from=builder /app/public ./public
+
+  # Create non-root user
+  RUN addgroup -g 1001 -S medusa && \
+      adduser -S medusa -u 1001 -G medusa
+
+  USER medusa
+
+  # Expose Medusa port
+  EXPOSE 9000
+
+  # Health check
+  HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:9000/health || exit 1
+
+  # Start Medusa
+  CMD ["npm", "run", "start"]
+  ```
+
+  **Coolify Application Setup:**
+
+  1. Go to: Projects → Add Project → `danieltarazona-store`
+  2. Add Application → Docker-based
+  3. Source: Select GitHub repository
+  4. Branch: `main`
+  5. Build Pack: `Dockerfile`
+  6. Port: `9000`
+
+#### Task 6.1.7: Database Configuration in Coolify
+
+- [ ] **Task 6.1.7**: Create and configure PostgreSQL database
+
+  **Option 1: Coolify Managed PostgreSQL**
+
+  1. Go to: Projects → danieltarazona-store → Add Database
+  2. Select: PostgreSQL
+  3. Version: 15 or 16
+  4. Configuration:
+     - Database Name: `medusa`
+     - Username: `medusa_user`
+     - Password: Auto-generated or custom
+     - Port: `5432` (internal)
+
+  **Database Environment Variables (Auto-populated):**
+
+  ```env
+  # These are automatically set when linking database
+  POSTGRES_HOST=<container-name>
+  POSTGRES_PORT=5432
+  POSTGRES_DB=medusa
+  POSTGRES_USER=medusa_user
+  POSTGRES_PASSWORD=<generated-password>
+
+  # Constructed DATABASE_URL
+  DATABASE_URL=postgres://medusa_user:<password>@<container-name>:5432/medusa
+  ```
+
+  **Option 2: External Supabase PostgreSQL**
+
+  1. Skip database creation in Coolify
+  2. Add environment variable manually:
+
+  ```env
+  DATABASE_URL=postgres://postgres.<ref>:<password>@aws-0-us-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+  ```
+
+  **Database Link in Coolify:**
+
+  1. Go to: Applications → Medusa 2.0 → Storages
+  2. Link: Select PostgreSQL database
+  3. Alias: `DATABASE` (creates DATABASE_URL automatically)
+
+#### Task 6.1.8: Redis Cache Configuration
+
+- [ ] **Task 6.1.8**: Configure Redis for Medusa caching and queues
+
+  **Create Redis Instance:**
+
+  1. Go to: Projects → danieltarazona-store → Add Database
+  2. Select: Redis
+  3. Version: 7.x
+  4. Port: `6379` (internal)
+
+  **Environment Variable:**
+
+  ```env
+  REDIS_URL=redis://<redis-container>:6379
+  ```
+
+  **Link to Application:**
+
+  1. Applications → Medusa 2.0 → Storages
+  2. Link Redis with alias: `REDIS`
+
+#### Task 6.1.9: Environment Variables Management
+
+- [ ] **Task 6.1.9**: Configure all required environment variables for Medusa
+
+  **Coolify Environment Variables (Applications → Medusa → Environment Variables):**
+
+  ```env
+  # ─────────────────────────────────────────────────────────────
+  # MEDUSA CORE CONFIGURATION
+  # ─────────────────────────────────────────────────────────────
+  NODE_ENV=production
+  MEDUSA_BACKEND_URL=https://api.danieltarazona.com
+  STORE_CORS=https://store.danieltarazona.com,https://danieltarazona.com
+  ADMIN_CORS=https://admin.danieltarazona.com
+
+  # ─────────────────────────────────────────────────────────────
+  # DATABASE (Auto-linked from Coolify database)
+  # ─────────────────────────────────────────────────────────────
+  # DATABASE_URL is automatically set when database is linked
+
+  # ─────────────────────────────────────────────────────────────
+  # REDIS (Auto-linked from Coolify Redis)
+  # ─────────────────────────────────────────────────────────────
+  # REDIS_URL is automatically set when Redis is linked
+
+  # ─────────────────────────────────────────────────────────────
+  # AUTHENTICATION & SECURITY
+  # ─────────────────────────────────────────────────────────────
+  JWT_SECRET=<generate-with: openssl rand -hex 64>
+  COOKIE_SECRET=<generate-with: openssl rand -hex 64>
+
+  # ─────────────────────────────────────────────────────────────
+  # PAYMENT PROVIDERS (Production)
+  # ─────────────────────────────────────────────────────────────
+  STRIPE_API_KEY=sk_live_xxxxx
+  STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+
+  # ─────────────────────────────────────────────────────────────
+  # EMAIL CONFIGURATION
+  # ─────────────────────────────────────────────────────────────
+  SMTP_HOST=smtp.resend.com
+  SMTP_PORT=465
+  SMTP_USER=resend
+  SMTP_PASSWORD=re_xxxxx
+  SMTP_FROM=store@danieltarazona.com
+
+  # ─────────────────────────────────────────────────────────────
+  # FILE STORAGE (S3-compatible)
+  # ─────────────────────────────────────────────────────────────
+  S3_URL=https://<account-id>.r2.cloudflarestorage.com
+  S3_BUCKET=medusa-files
+  S3_REGION=auto
+  S3_ACCESS_KEY_ID=xxxxx
+  S3_SECRET_ACCESS_KEY=xxxxx
+
+  # ─────────────────────────────────────────────────────────────
+  # LOGGING & MONITORING
+  # ─────────────────────────────────────────────────────────────
+  LOG_LEVEL=info
+  ```
+
+  **Secrets vs Environment Variables:**
+
+  | Type | Use For | Example |
+  |------|---------|---------|
+  | Environment | Non-sensitive config | `NODE_ENV`, `LOG_LEVEL` |
+  | Secret | Sensitive data | `JWT_SECRET`, `STRIPE_API_KEY` |
+  | Build Argument | Build-time values | `NODE_VERSION` |
+
+  **Generating Secure Secrets:**
+
+  ```bash
+  # Generate JWT secret
+  openssl rand -hex 64
+
+  # Generate Cookie secret
+  openssl rand -hex 64
+
+  # Generate random password
+  openssl rand -base64 32
+  ```
+
+#### Task 6.1.10: Deployment Configuration
+
+- [ ] **Task 6.1.10**: Configure automatic deployment settings
+
+  **Deployment Settings (Applications → Medusa → General):**
+
+  | Setting | Value | Description |
+  |---------|-------|-------------|
+  | Auto Deploy | Enabled | Deploy on push to main branch |
+  | Branch | `main` | Production branch |
+  | Build Pack | Dockerfile | Use custom Dockerfile |
+  | Health Check Path | `/health` | Verify deployment success |
+  | Health Check Interval | `30s` | Check frequency |
+  | Container Replicas | `1` | Single instance (scale as needed) |
+
+  **Webhook Configuration:**
+
+  Coolify automatically creates a webhook URL for GitHub:
+
+  ```
+  https://coolify.danieltarazona.com/webhooks/github/<webhook-id>
+  ```
+
+  This triggers automatic deployments when:
+  - Push to monitored branch
+  - Pull request merged
+  - Manual trigger from Coolify dashboard
+
+  **Pre-deployment Commands:**
+
+  ```bash
+  # Run before deployment
+  npm run build
+  npm run db:migrate
+  ```
+
+  **Post-deployment Commands:**
+
+  ```bash
+  # Run after successful deployment
+  npm run db:seed  # Only for initial setup
+  ```
+
+#### Task 6.1.11: Cloudflare Tunnel Integration
+
+- [ ] **Task 6.1.11**: Configure Cloudflare Tunnel for Coolify services
+
+  **Install cloudflared on VPS:**
+
+  ```bash
+  # Download and install cloudflared
+  curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+    -o /usr/local/bin/cloudflared
+  chmod +x /usr/local/bin/cloudflared
+
+  # Authenticate with Cloudflare
+  cloudflared tunnel login
+  ```
+
+  **Create Tunnel:**
+
+  ```bash
+  # Create named tunnel
+  cloudflared tunnel create danieltarazona-vps
+
+  # This creates a credentials file at:
+  # ~/.cloudflared/<tunnel-uuid>.json
+  ```
+
+  **Tunnel Configuration (`~/.cloudflared/config.yml`):**
+
+  ```yaml
+  tunnel: danieltarazona-vps
+  credentials-file: /root/.cloudflared/<tunnel-uuid>.json
+
+  ingress:
+    # Medusa Store API
+    - hostname: api.danieltarazona.com
+      service: http://localhost:9000
+      originRequest:
+        noTLSVerify: true
+
+    # Medusa Admin Dashboard
+    - hostname: admin.danieltarazona.com
+      service: http://localhost:9000
+      path: /admin
+      originRequest:
+        noTLSVerify: true
+
+    # Coolify Dashboard (Optional - restrict access)
+    - hostname: coolify.danieltarazona.com
+      service: http://localhost:8000
+      originRequest:
+        noTLSVerify: true
+
+    # Catch-all
+    - service: http_status:404
+  ```
+
+  **Run Tunnel as Service:**
+
+  ```bash
+  # Install as systemd service
+  cloudflared service install
+
+  # Enable and start
+  systemctl enable cloudflared
+  systemctl start cloudflared
+
+  # Check status
+  systemctl status cloudflared
+  ```
+
+  **DNS Configuration (Automatic via API):**
+
+  ```bash
+  # Route DNS to tunnel
+  cloudflared tunnel route dns danieltarazona-vps api.danieltarazona.com
+  cloudflared tunnel route dns danieltarazona-vps admin.danieltarazona.com
+  cloudflared tunnel route dns danieltarazona-vps coolify.danieltarazona.com
+  ```
+
+#### Task 6.1.12: Backup Configuration
+
+- [ ] **Task 6.1.12**: Configure automated database backups
+
+  **Coolify Built-in Backups:**
+
+  1. Go to: Databases → PostgreSQL → Backups
+  2. Enable: Scheduled Backups
+  3. Schedule: `0 3 * * *` (3 AM daily)
+  4. Retention: 7 days
+
+  **Backup Storage Options:**
+
+  | Storage | Configuration | Notes |
+  |---------|--------------|-------|
+  | Local | `/data/coolify/backups` | Default, limited by disk |
+  | S3 | Add S3 credentials | Recommended for production |
+  | R2 | Cloudflare R2 bucket | Cost-effective S3-compatible |
+
+  **S3/R2 Backup Configuration:**
+
+  ```env
+  # Add to Coolify settings
+  S3_BACKUP_BUCKET=danieltarazona-backups
+  S3_BACKUP_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+  S3_BACKUP_ACCESS_KEY=xxxxx
+  S3_BACKUP_SECRET_KEY=xxxxx
+  ```
+
+  **Manual Backup Script:**
+
+  ```bash
+  #!/bin/bash
+  # /data/coolify/scripts/backup.sh
+
+  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+  BACKUP_DIR="/data/coolify/backups"
+  DATABASE_CONTAINER="coolify-<db-uuid>"
+
+  # Create backup
+  docker exec $DATABASE_CONTAINER pg_dump -U medusa_user medusa > \
+    "$BACKUP_DIR/medusa_$TIMESTAMP.sql"
+
+  # Compress
+  gzip "$BACKUP_DIR/medusa_$TIMESTAMP.sql"
+
+  # Upload to R2 (using rclone or aws cli)
+  aws s3 cp "$BACKUP_DIR/medusa_$TIMESTAMP.sql.gz" \
+    s3://danieltarazona-backups/medusa/ \
+    --endpoint-url https://<account-id>.r2.cloudflarestorage.com
+
+  # Clean old local backups (keep 7 days)
+  find $BACKUP_DIR -name "*.sql.gz" -mtime +7 -delete
+
+  echo "Backup completed: medusa_$TIMESTAMP.sql.gz"
+  ```
+
+  **Schedule with Cron:**
+
+  ```bash
+  # Add to crontab
+  crontab -e
+
+  # Daily at 3 AM
+  0 3 * * * /data/coolify/scripts/backup.sh >> /var/log/backup.log 2>&1
+  ```
+
+#### Task 6.1.13: Monitoring and Logging
+
+- [ ] **Task 6.1.13**: Set up monitoring and log aggregation
+
+  **Coolify Built-in Monitoring:**
+
+  1. Dashboard → Server → Metrics
+     - CPU usage
+     - Memory usage
+     - Disk usage
+     - Network traffic
+
+  2. Applications → Logs
+     - Real-time log streaming
+     - Download log files
+     - Filter by timeframe
+
+  **Container Health Monitoring:**
+
+  ```bash
+  # Check all container health
+  docker ps --format "table {{.Names}}\t{{.Status}}"
+
+  # View specific container logs
+  docker logs coolify-<uuid> -f --tail 100
+
+  # Check resource usage
+  docker stats --no-stream
+  ```
+
+  **External Monitoring (Optional):**
+
+  | Service | Purpose | Free Tier |
+  |---------|---------|-----------|
+  | Uptime Robot | HTTP monitoring | 50 monitors |
+  | Betterstack | Logs + Uptime | Limited |
+  | Grafana Cloud | Metrics visualization | 10K series |
+
+  **Uptime Robot Configuration:**
+
+  ```
+  Monitor Type: HTTP(s)
+  URL: https://api.danieltarazona.com/health
+  Interval: 5 minutes
+  Alert Contacts: email, Discord webhook
+  ```
+
+#### Task 6.1.14: Scaling Configuration
+
+- [ ] **Task 6.1.14**: Configure horizontal scaling options
+
+  **Single VPS Scaling (Vertical):**
+
+  1. Upgrade VPS plan in Hetzner/Oracle
+  2. Increase container resources in Coolify:
+     - Applications → Medusa → Resources
+     - Memory Limit: 512MB → 1024MB
+     - CPU Limit: 0.5 → 1.0
+
+  **Multi-Container Scaling (Horizontal):**
+
+  ```yaml
+  # docker-compose.yml with load balancing
+  version: '3.8'
+
+  services:
+    medusa:
+      image: medusa-backend:latest
+      deploy:
+        replicas: 2
+        resources:
+          limits:
+            memory: 512M
+            cpus: '0.5'
+      healthcheck:
+        test: ["CMD", "wget", "-q", "--spider", "http://localhost:9000/health"]
+        interval: 30s
+        timeout: 10s
+        retries: 3
+  ```
+
+  **Coolify Scaling Settings:**
+
+  | Setting | Value | Notes |
+  |---------|-------|-------|
+  | Replicas | 1-5 | Based on traffic |
+  | Auto-scaling | Not built-in | Use external orchestration |
+  | Zero-downtime | Enabled | Rolling updates |
+
+### Phase 5: Deployment & Orchestration - Task Summary
+
+| Task ID | Description | Status |
+|---------|-------------|--------|
+| 6.1.1 | Prepare VPS prerequisites | [ ] |
+| 6.1.2 | Install Docker Engine | [ ] |
+| 6.1.3 | Install Coolify platform | [ ] |
+| 6.1.4 | Complete initial Coolify setup | [ ] |
+| 6.1.5 | Connect GitHub repository | [ ] |
+| 6.1.6 | Deploy Medusa 2.0 application | [ ] |
+| 6.1.7 | Configure PostgreSQL database | [ ] |
+| 6.1.8 | Configure Redis cache | [ ] |
+| 6.1.9 | Set up environment variables | [ ] |
+| 6.1.10 | Configure deployment settings | [ ] |
+| 6.1.11 | Integrate Cloudflare Tunnel | [ ] |
+| 6.1.12 | Set up automated backups | [ ] |
+| 6.1.13 | Configure monitoring and logging | [ ] |
+| 6.1.14 | Set up scaling options | [ ] |
+
+### Coolify Resources & Documentation
+
+| Resource | URL |
+|----------|-----|
+| Coolify Documentation | https://coolify.io/docs |
+| Coolify GitHub | https://github.com/coollabsio/coolify |
+| Coolify Discord | https://discord.gg/coolify |
+| Docker Documentation | https://docs.docker.com/ |
+| Traefik Documentation | https://doc.traefik.io/traefik/ |
+| Cloudflare Tunnel | https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/ |
+
+---
+
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*

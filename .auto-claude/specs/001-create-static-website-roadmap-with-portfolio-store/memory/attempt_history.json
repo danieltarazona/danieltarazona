@@ -1,8 +1,105 @@
 {
-  "subtasks": {},
+  "subtasks": {
+    "3.2": {
+      "attempts": [
+        {
+          "session": 1,
+          "timestamp": "2025-12-19T12:17:00.177486",
+          "approach": "Implemented: Add section for Nhost CLI setup, project configuration, and comparison with Supabase for this use ca",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "3.3": {
+      "attempts": [
+        {
+          "session": 2,
+          "timestamp": "2025-12-19T12:21:48.775064",
+          "approach": "Implemented: Add comprehensive section for Medusa 2.0: CLI installation, project scaffolding, database configurat",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "3.4": {
+      "attempts": [
+        {
+          "session": 3,
+          "timestamp": "2025-12-19T12:25:52.758459",
+          "approach": "Implemented: Create comparison table analyzing both platforms for multi-brand/multi-domain scenarios (Adam Roboti",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "4.1": {
+      "attempts": [
+        {
+          "session": 4,
+          "timestamp": "2025-12-19T12:29:45.446450",
+          "approach": "Implemented: Add tasks for Astro CLI, project scaffolding with minimal template, TypeScript configuration, and pr",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "4.2": {
+      "attempts": [
+        {
+          "session": 5,
+          "timestamp": "2025-12-19T12:35:24.578422",
+          "approach": "Implemented: Add tasks for connecting Astro storefront to Medusa API, product listing pages, cart functionality, ",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "4.3": {
+      "attempts": [
+        {
+          "session": 6,
+          "timestamp": "2025-12-19T12:41:01.842156",
+          "approach": "Implemented: Add detailed tasks for contact form implementation: form component, validation, Supabase table schem",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "5.1": {
+      "attempts": [
+        {
+          "session": 7,
+          "timestamp": "2025-12-19T12:45:17.897223",
+          "approach": "Implemented: Add tasks for Deno installation, project structure, Deno Deploy configuration, and common serverless",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "5.2": {
+      "attempts": [
+        {
+          "session": 8,
+          "timestamp": "2025-12-19T12:49:20.255546",
+          "approach": "Implemented: Add tasks for Workers project setup with Wrangler, routing configuration, and integration points wit",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    }
+  },
   "stuck_subtasks": [],
   "metadata": {
     "created_at": "2025-12-19T12:14:18.577731",
-    "last_updated": "2025-12-19T12:14:18.577733"
+    "last_updated": "2025-12-19T12:49:20.255555"
   }
 }

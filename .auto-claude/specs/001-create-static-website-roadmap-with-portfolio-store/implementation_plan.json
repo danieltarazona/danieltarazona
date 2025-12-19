@@ -62,7 +62,7 @@
             "Service connections are explained",
             "Data flow is visible"
           ],
-          "notes": "Added comprehensive ASCII architecture diagram to ROADMAP.md showing service connection flow: Astro frontend → Cloudflare CDN → Medusa backend → PostgreSQL (Supabase). Includes data flow summary, connection protocols table, and visual representation of portfolio site flow, e-commerce store flow, and admin dashboard flow.",
+          "notes": "Added comprehensive ASCII architecture diagram to ROADMAP.md showing service connection flow: Astro frontend \u2192 Cloudflare CDN \u2192 Medusa backend \u2192 PostgreSQL (Supabase). Includes data flow summary, connection protocols table, and visual representation of portfolio site flow, e-commerce store flow, and admin dashboard flow.",
           "updated_at": "2025-12-19T16:53:45.640029+00:00"
         }
       ]
@@ -160,7 +160,7 @@
           "id": "3.2",
           "title": "Document Nhost as alternative BaaS option",
           "description": "Add section for Nhost CLI setup, project configuration, and comparison with Supabase for this use case",
-          "status": "pending",
+          "status": "completed",
           "estimated_minutes": 15,
           "files_to_create": [],
           "files_to_modify": [
@@ -170,13 +170,15 @@
             "Nhost CLI installation documented",
             "Setup commands included",
             "Comparison with Supabase provided"
-          ]
+          ],
+          "notes": "Added comprehensive Nhost BaaS documentation section to ROADMAP.md including: (1) Nhost architecture diagram with PostgreSQL, Hasura GraphQL, Auth, Storage, and Functions components, (2) Why Consider Nhost benefits table, (3) Free tier limits (1GB database, 5GB bandwidth), (4) CLI installation via npm/Homebrew/curl with Tasks 3.14-3.15, (5) Project creation via Dashboard and CLI with Task 3.16, (6) Local development setup with nhost up/down commands and config.yaml example with Task 3.17, (7) Database schema migrations using Hasura with up.sql/down.sql examples with Task 3.18, (8) Hasura permissions configuration with Task 3.19, (9) Nhost JavaScript client setup with TypeScript examples with Task 3.20, (10) Serverless functions with contact-handler.ts example with Task 3.21, (11) Environment variables documentation, (12) Comprehensive Supabase vs Nhost comparison with 14 feature comparisons, API style comparison with code examples, use case recommendations table, and clear recommendation for Supabase as primary choice. Committed as da8795f.",
+          "updated_at": "2025-12-19T17:16:45.574030+00:00"
         },
         {
           "id": "3.3",
           "title": "Document Medusa 2.0 headless commerce setup",
           "description": "Add comprehensive section for Medusa 2.0: CLI installation, project scaffolding, database configuration, environment variables, product limits (100 products)",
-          "status": "pending",
+          "status": "completed",
           "estimated_minutes": 25,
           "files_to_create": [],
           "files_to_modify": [
@@ -188,13 +190,15 @@
             "PostgreSQL connection configured",
             "Environment variables listed",
             "100 product limit scope noted"
-          ]
+          ],
+          "notes": "Added comprehensive Medusa 2.0 E-Commerce Backend section to ROADMAP.md including: (1) Medusa 2.0 architecture diagram with modular backend structure and REST API endpoints, (2) Why Medusa 2.0 benefits table, (3) Product Limits & Scope section documenting 100 products max with storage estimation, (4) CLI installation via npm with available commands table (Task 3.22), (5) Project scaffolding with create-medusa-app CLI including project structure overview (Task 3.23-3.24), (6) Database configuration with 3 options: Local PostgreSQL, Docker PostgreSQL, Supabase PostgreSQL (Task 3.25), (7) Comprehensive environment variables with .env template and reference table (Task 3.26), (8) medusa-config.ts configuration with TypeScript example (Task 3.27), (9) Database setup & migrations commands with schema overview diagram (Task 3.28), (10) Admin user creation (Task 3.29), (11) Development server startup with verification commands (Task 3.30), (12) Medusa JS SDK configuration for Astro storefront with TypeScript helpers (Task 3.31), (13) Production deployment checklist with Docker and docker-compose examples (Task 3.32), (14) Tasks 3.22-3.32 summary table, (15) API Quick Reference tables for Store and Admin endpoints. Committed as ddffa14.",
+          "updated_at": "2025-12-19T17:21:28.484926+00:00"
         },
         {
           "id": "3.4",
           "title": "Add Vendure vs Medusa comparison for multi-site templating",
           "description": "Create comparison table analyzing both platforms for multi-brand/multi-domain scenarios (Adam Robotics, Adam Automotive, Adam Defense). Include recommendation",
-          "status": "pending",
+          "status": "completed",
           "estimated_minutes": 20,
           "files_to_create": [],
           "files_to_modify": [
@@ -205,7 +209,9 @@
             "Multi-tenancy support compared",
             "Template reusability analyzed",
             "Clear recommendation provided"
-          ]
+          ],
+          "notes": "Added comprehensive Vendure vs Medusa 2.0 comparison section to ROADMAP.md including: (1) Platform overview diagram for multi-brand e-commerce scenario (Adam Robotics, Adam Automotive, Adam Defense), (2) Feature Comparison Table with 20+ criteria comparing multi-channel/multi-store, GraphQL/REST APIs, admin dashboards, plugin ecosystems, and multi-tenancy support, (3) Multi-Brand Architecture diagrams for both Vendure (single instance with channels) and Medusa (multi-instance approach), (4) Scenario Analysis Table comparing 10 use cases, (5) Infrastructure Cost Comparison table, (6) Code examples for Vendure multi-channel configuration and Medusa sales channels, (7) Decision Matrix for platform selection, (8) Clear recommendation: Vendure for multi-brand expansion (Adam brands) due to native multi-channel architecture, cost efficiency, and unified administration; Medusa for single-store (danieltarazona.com) due to simpler setup and REST API familiarity, (9) Migration path from Medusa to Vendure if expansion is needed. Committed as 3a5053f.",
+          "updated_at": "2025-12-19T17:25:40.899610+00:00"
         }
       ]
     },
@@ -219,7 +225,7 @@
           "id": "4.1",
           "title": "Document Astro project setup for main site",
           "description": "Add tasks for Astro CLI, project scaffolding with minimal template, TypeScript configuration, and project structure for portfolio/photo gallery",
-          "status": "pending",
+          "status": "completed",
           "estimated_minutes": 20,
           "files_to_create": [],
           "files_to_modify": [
@@ -230,13 +236,15 @@
             "Project structure explained",
             "TypeScript setup included",
             "Portfolio/gallery structure outlined"
-          ]
+          ],
+          "notes": "Added comprehensive Phase 3: Frontend Development section to ROADMAP.md covering Astro CLI installation, project scaffolding with minimal template, TypeScript configuration with path aliases, project structure for portfolio/photo gallery, Astro configuration with image optimization, essential integrations (React, Tailwind, Sitemap), content collections configuration, package.json scripts, base layout template with SEO, and environment variables template. Includes architecture diagram and 10 detailed sub-tasks (4.1.1-4.1.10). Committed as d0f37d7.",
+          "updated_at": "2025-12-19T17:29:23.647653+00:00"
         },
         {
           "id": "4.2",
           "title": "Document Astro storefront integration with Medusa",
           "description": "Add tasks for connecting Astro storefront to Medusa API, product listing pages, cart functionality, and checkout flow",
-          "status": "pending",
+          "status": "completed",
           "estimated_minutes": 20,
           "files_to_create": [],
           "files_to_modify": [
@@ -246,13 +254,15 @@
             "Medusa API integration documented",
             "Product page structure outlined",
             "Cart and checkout flow described"
-          ]
+          ],
+          "notes": "Added comprehensive Astro storefront integration with Medusa 2.0 documentation to ROADMAP.md including: (1) Architecture diagrams showing Astro Storefront + Medusa 2.0 relationship with API endpoints, (2) E-commerce data flow diagrams for product browsing (SSG), cart operations (client-side), and checkout flow (multi-step), (3) Task 4.2.1-4.2.11 covering complete storefront implementation: project setup, project structure with components/layouts/pages directories, Medusa SDK installation and configuration, product listing page with ProductGrid and ProductCard components, product detail page with variant selection and AddToCartButton, cart functionality with Zustand state management (useCart hook, CartDrawer, CartItem components), multi-step checkout flow (CheckoutFlow, ShippingForm, ShippingOptions, PaymentForm, OrderSummary), price formatting utilities with currency support, environment variables template for storefront, Astro configuration for storefront deployment, (4) Phase 3 Task Summary table for storefront integration, (5) API Integration Quick Reference table for all store endpoints. Committed as 2671f67.",
+          "updated_at": "2025-12-19T17:35:11.797921+00:00"
         },
         {
           "id": "4.3",
           "title": "Document contact form with PostgreSQL persistence",
           "description": "Add detailed tasks for contact form implementation: form component, validation, Supabase table schema, API endpoint (Deno/Workers), email notifications",
-          "status": "pending",
+          "status": "completed",
           "estimated_minutes": 20,
           "files_to_create": [],
           "files_to_modify": [
@@ -263,7 +273,9 @@
             "PostgreSQL table schema included",
             "API endpoint for form submission",
             "Validation requirements listed"
-          ]
+          ],
+          "notes": "Added comprehensive Task 4.3 section with 9 detailed subtasks covering: ContactForm React component (4.3.1), CSS styles (4.3.2), Contact page integration (4.3.3), Validation utilities (4.3.4), Supabase table enhancements (4.3.5), Cloudflare Workers API (4.3.6), Deno Deploy API (4.3.7), Email notifications (4.3.8), and Testing checklist (4.3.9). Includes architecture diagram and full code examples.",
+          "updated_at": "2025-12-19T17:40:53.355645+00:00"
         }
       ]
     },
@@ -277,7 +289,7 @@
           "id": "5.1",
           "title": "Document Deno runtime setup and deployment",
           "description": "Add tasks for Deno installation, project structure, Deno Deploy configuration, and common serverless function patterns",
-          "status": "pending",
+          "status": "completed",
           "estimated_minutes": 15,
           "files_to_create": [],
           "files_to_modify": [
@@ -287,13 +299,15 @@
             "Deno CLI installation documented",
             "Project structure for functions",
             "Deno Deploy setup included"
-          ]
+          ],
+          "notes": "Added comprehensive Phase 4: Serverless Functions section to ROADMAP.md including: (1) Serverless architecture overview diagram showing Deno Deploy and Cloudflare Workers integration, (2) Deno vs Cloudflare Workers comparison table, (3) Task 5.1.1: Deno installation for macOS/Linux/Windows with post-installation setup and IDE configuration, (4) Task 5.1.2: Project structure with deno.json configuration and .env.example, (5) Task 5.1.3: Main entry point using Hono framework with CORS, logging, and error handling, (6) Task 5.1.4: Rate limiting middleware using Deno KV with atomic operations, (7) Task 5.1.5: Contact form API endpoint with validation, spam detection, and email notifications, (8) Task 5.1.6: Deno Deploy configuration via GitHub integration, CLI deployment, and GitHub Actions workflow, (9) Task 5.1.7: Common serverless patterns (API proxy for Medusa, scheduled cron tasks, webhook handlers, image processing), (10) Task 5.1.8: Testing with Deno test framework and example test cases, (11) Phase 4 task summary table and Deno resources/documentation links. Committed as dc26592.",
+          "updated_at": "2025-12-19T17:45:01.749884+00:00"
         },
         {
           "id": "5.2",
           "title": "Document Cloudflare Workers configuration",
           "description": "Add tasks for Workers project setup with Wrangler, routing configuration, and integration points with main site",
-          "status": "pending",
+          "status": "completed",
           "estimated_minutes": 15,
           "files_to_create": [],
           "files_to_modify": [
@@ -303,7 +317,9 @@
             "Wrangler configuration documented",
             "Worker routes explained",
             "Environment bindings included"
-          ]
+          ],
+          "notes": "Added comprehensive Task 5.2 section to ROADMAP.md covering Cloudflare Workers configuration. Includes: (1) Architecture diagram showing Workers edge network with V8 isolates and bindings (KV, D1, R2, Durable Objects, Queues), (2) Features table for Workers capabilities, (3) Task 5.2.1: Wrangler CLI installation via npm/pnpm/yarn, authentication via browser OAuth and API token, CLI reference table, (4) Task 5.2.2: Project structure with wrangler.toml configuration including routes, env vars, KV namespaces, D1/R2 bindings, TypeScript config, and package.json with scripts, (5) Task 5.2.3: Main entry point using Hono router with CORS, logging, secure headers, timing middleware, request context, and error handling, (6) Task 5.2.4: Route handlers for health checks, contact form with Zod validation and Supabase/Resend integration, and Medusa API proxy with caching, (7) Task 5.2.5: Rate limiting middleware using KV storage with configurable windows and limits, (8) Task 5.2.6: KV namespace creation and management commands, (9) Task 5.2.7: Secrets management with wrangler secret put and .dev.vars for local dev, (10) Task 5.2.8: Local development server with wrangler dev options, (11) Task 5.2.9: Deployment and routing with wrangler deploy and DNS configuration via API, (12) Task 5.2.10: Monitoring with wrangler tail, analytics, and external logging, (13) Task 5.2.11: Integration with Astro sites including API client helpers and environment variables. Added Phase 4 Task Summary table and Cloudflare Workers Resources documentation links. Committed as e75ebc2.",
+          "updated_at": "2025-12-19T17:49:05.656206+00:00"
         }
       ]
     },
@@ -586,7 +602,7 @@
       "GitHub account"
     ]
   },
-  "last_updated": "2025-12-19T17:04:22.280583+00:00",
+  "last_updated": "2025-12-19T17:49:05.656216+00:00",
   "status": "in_progress",
   "planStatus": "in_progress",
   "updated_at": "2025-12-19T17:14:17.488Z",
