@@ -7902,4 +7902,1370 @@ This section covers the complete implementation of the contact form feature for 
 
 ---
 
+## Phase 4: Serverless Functions
+
+This phase covers the setup and deployment of serverless functions using Deno runtime and Deno Deploy for edge computing. Serverless functions handle dynamic operations like form submissions, API proxies, and scheduled tasks without managing infrastructure.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                           SERVERLESS ARCHITECTURE                                        │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+                              ┌─────────────────┐
+                              │   Client Apps   │
+                              │  (Astro Sites)  │
+                              └────────┬────────┘
+                                       │ HTTPS Requests
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              EDGE NETWORK                                                │
+│  ┌───────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                         Cloudflare / Deno Deploy                                   │  │
+│  │  • 300+ Edge Locations (Cloudflare) / 35+ Regions (Deno Deploy)                   │  │
+│  │  • Sub-millisecond cold starts                                                     │  │
+│  │  • Automatic SSL/TLS                                                               │  │
+│  └───────────────────────────────────────────────────────────────────────────────────┘  │
+│                    │                                           │                         │
+│          Deno Deploy                                 Cloudflare Workers                  │
+│                    ▼                                           ▼                         │
+│     ┌──────────────────────────┐                ┌──────────────────────────┐            │
+│     │    Deno Functions        │                │    Workers Functions     │            │
+│     │  • TypeScript Native     │                │  • JavaScript/TypeScript │            │
+│     │  • Web Standard APIs     │                │  • V8 Isolates           │            │
+│     │  • Deno KV Storage       │                │  • KV, D1, R2 Bindings   │            │
+│     └──────────────────────────┘                └──────────────────────────┘            │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+                    │                                           │
+                    └───────────────┬───────────────────────────┘
+                                    │
+                                    ▼
+                    ┌───────────────────────────────┐
+                    │      Backend Services         │
+                    │  • Supabase PostgreSQL        │
+                    │  • Medusa API                 │
+                    │  • Email Services (Resend)    │
+                    │  • External APIs              │
+                    └───────────────────────────────┘
+```
+
+### Why Serverless Functions?
+
+| Use Case | Benefit | Example |
+|----------|---------|---------|
+| **Contact Form Processing** | No server to manage, scales automatically | `/api/contact` endpoint |
+| **API Proxies** | Hide API keys, add CORS headers | Proxying Medusa API |
+| **Image Processing** | On-demand transformations | Thumbnail generation |
+| **Scheduled Tasks** | Run cron jobs without servers | Daily analytics sync |
+| **Authentication** | Token validation at the edge | JWT verification |
+| **Rate Limiting** | Protect backend from abuse | Request throttling |
+
+### Deno vs Cloudflare Workers Comparison
+
+| Feature | Deno Deploy | Cloudflare Workers |
+|---------|-------------|-------------------|
+| **Runtime** | Deno (V8 + Rust) | V8 Isolates |
+| **Language** | TypeScript native | TypeScript (transpiled) |
+| **Cold Start** | ~10-50ms | ~0-5ms |
+| **Max Execution** | 50ms (free), 5min (paid) | 50ms (free), 30s (paid) |
+| **Storage** | Deno KV (built-in) | KV, D1, R2, Durable Objects |
+| **Free Tier** | 100K req/day, 1GB bandwidth | 100K req/day |
+| **Web APIs** | Full compatibility | Most APIs |
+| **Deploy Method** | Git integration or CLI | Wrangler CLI |
+| **Best For** | TypeScript projects, simpler setup | Complex workflows, Cloudflare ecosystem |
+
+**Recommendation**: Use **Deno Deploy** for simpler serverless functions (contact form, proxies) due to native TypeScript support and simpler deployment. Use **Cloudflare Workers** when you need deeper integration with Cloudflare services (KV, D1, R2).
+
+---
+
+### Task 5.1: Deno Runtime Setup and Deployment
+
+This section covers installing Deno, setting up a project structure for serverless functions, configuring Deno Deploy, and implementing common serverless patterns.
+
+#### Task 5.1.1: Deno Installation
+
+- [ ] **Task 5.1.1**: Install Deno runtime on development machine
+
+  **Installation Methods:**
+
+  ```bash
+  # macOS / Linux (Recommended)
+  curl -fsSL https://deno.land/install.sh | sh
+
+  # macOS via Homebrew
+  brew install deno
+
+  # Windows via PowerShell
+  irm https://deno.land/install.ps1 | iex
+
+  # Windows via Chocolatey
+  choco install deno
+
+  # Windows via Scoop
+  scoop install deno
+
+  # Using Cargo (Rust)
+  cargo install deno --locked
+  ```
+
+  **Post-Installation Setup:**
+
+  ```bash
+  # Add Deno to PATH (if using curl installer)
+  # Add to ~/.bashrc, ~/.zshrc, or ~/.profile
+  export DENO_INSTALL="$HOME/.deno"
+  export PATH="$DENO_INSTALL/bin:$PATH"
+
+  # Verify installation
+  deno --version
+  # deno 2.x.x (release, x86_64-apple-darwin)
+  # v8 12.x.x
+  # typescript 5.x.x
+
+  # Check available commands
+  deno help
+  ```
+
+  **IDE Setup (VS Code):**
+
+  ```bash
+  # Install Deno extension
+  code --install-extension denoland.vscode-deno
+
+  # Enable Deno for workspace (create .vscode/settings.json)
+  {
+    "deno.enable": true,
+    "deno.lint": true,
+    "deno.unstable": ["kv"],
+    "editor.defaultFormatter": "denoland.vscode-deno",
+    "[typescript]": {
+      "editor.defaultFormatter": "denoland.vscode-deno"
+    },
+    "[typescriptreact]": {
+      "editor.defaultFormatter": "denoland.vscode-deno"
+    }
+  }
+  ```
+
+  **Deno CLI Reference:**
+
+  | Command | Purpose | Example |
+  |---------|---------|---------|
+  | `deno run` | Execute a script | `deno run --allow-net server.ts` |
+  | `deno task` | Run defined tasks | `deno task dev` |
+  | `deno test` | Run tests | `deno test --allow-read` |
+  | `deno fmt` | Format code | `deno fmt src/` |
+  | `deno lint` | Lint code | `deno lint src/` |
+  | `deno check` | Type check | `deno check main.ts` |
+  | `deno compile` | Create executable | `deno compile --output app main.ts` |
+  | `deno bench` | Run benchmarks | `deno bench bench.ts` |
+  | `deno info` | Show dependencies | `deno info main.ts` |
+  | `deno upgrade` | Update Deno | `deno upgrade` |
+
+#### Task 5.1.2: Project Structure for Serverless Functions
+
+- [ ] **Task 5.1.2**: Create organized project structure for Deno serverless functions
+
+  **Recommended Project Structure:**
+
+  ```
+  deno-functions/
+  ├── deno.json              # Deno configuration
+  ├── deno.lock              # Dependency lock file
+  ├── import_map.json        # Import aliases (optional)
+  ├── .env                   # Environment variables (local only)
+  ├── .env.example           # Environment template
+  ├── .gitignore
+  ├── README.md
+  │
+  ├── src/
+  │   ├── main.ts            # Entry point / router
+  │   │
+  │   ├── routes/            # API route handlers
+  │   │   ├── contact.ts     # POST /api/contact
+  │   │   ├── health.ts      # GET /health
+  │   │   └── proxy/
+  │   │       └── medusa.ts  # Medusa API proxy
+  │   │
+  │   ├── middleware/        # Request/response middleware
+  │   │   ├── cors.ts        # CORS headers
+  │   │   ├── ratelimit.ts   # Rate limiting
+  │   │   ├── auth.ts        # Authentication
+  │   │   └── logger.ts      # Request logging
+  │   │
+  │   ├── services/          # External service integrations
+  │   │   ├── supabase.ts    # Supabase client
+  │   │   ├── resend.ts      # Email service
+  │   │   └── medusa.ts      # Medusa API client
+  │   │
+  │   ├── utils/             # Utility functions
+  │   │   ├── validation.ts  # Input validation
+  │   │   ├── response.ts    # Response helpers
+  │   │   └── env.ts         # Environment helpers
+  │   │
+  │   └── types/             # TypeScript types
+  │       ├── api.ts         # API request/response types
+  │       └── models.ts      # Data models
+  │
+  └── tests/                 # Test files
+      ├── routes/
+      │   └── contact_test.ts
+      └── utils/
+          └── validation_test.ts
+  ```
+
+  **Create Project:**
+
+  ```bash
+  # Create directory structure
+  mkdir -p deno-functions/src/{routes/proxy,middleware,services,utils,types}
+  mkdir -p deno-functions/tests/{routes,utils}
+
+  # Initialize with basic files
+  cd deno-functions
+  touch deno.json import_map.json .env.example README.md
+  touch src/main.ts
+  ```
+
+  **deno.json (Configuration):**
+
+  ```json
+  {
+    "name": "danieltarazona-functions",
+    "version": "1.0.0",
+    "exports": "./src/main.ts",
+
+    "tasks": {
+      "dev": "deno run --watch --allow-net --allow-env --allow-read src/main.ts",
+      "start": "deno run --allow-net --allow-env --allow-read src/main.ts",
+      "test": "deno test --allow-net --allow-env --allow-read",
+      "test:coverage": "deno test --allow-net --allow-env --allow-read --coverage=coverage",
+      "lint": "deno lint",
+      "fmt": "deno fmt",
+      "check": "deno check src/main.ts",
+      "deploy": "deployctl deploy --project=danieltarazona-api src/main.ts"
+    },
+
+    "imports": {
+      "@/": "./src/",
+      "@std/": "https://deno.land/std@0.220.0/",
+      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0",
+      "hono": "https://deno.land/x/hono@v4.0.0/mod.ts",
+      "hono/": "https://deno.land/x/hono@v4.0.0/",
+      "zod": "https://deno.land/x/zod@v3.22.4/mod.ts"
+    },
+
+    "compilerOptions": {
+      "strict": true,
+      "lib": ["deno.window", "deno.unstable"]
+    },
+
+    "lint": {
+      "include": ["src/", "tests/"],
+      "rules": {
+        "tags": ["recommended"],
+        "include": ["ban-untagged-todo", "no-unused-vars"],
+        "exclude": ["no-explicit-any"]
+      }
+    },
+
+    "fmt": {
+      "useTabs": false,
+      "lineWidth": 100,
+      "indentWidth": 2,
+      "singleQuote": true,
+      "proseWrap": "preserve"
+    },
+
+    "test": {
+      "include": ["tests/"]
+    },
+
+    "unstable": ["kv"]
+  }
+  ```
+
+  **.env.example:**
+
+  ```bash
+  # Supabase Configuration
+  SUPABASE_URL=https://your-project.supabase.co
+  SUPABASE_ANON_KEY=your-anon-key
+  SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+  # Email Service (Resend)
+  RESEND_API_KEY=re_xxxxxxxxxxxxx
+  NOTIFICATION_EMAIL=admin@danieltarazona.com
+  FROM_EMAIL=noreply@danieltarazona.com
+
+  # Medusa Configuration
+  MEDUSA_BACKEND_URL=https://api.store.danieltarazona.com
+  MEDUSA_PUBLISHABLE_KEY=pk_xxxxxxxxxxxxx
+
+  # Rate Limiting
+  RATE_LIMIT_MAX=10
+  RATE_LIMIT_WINDOW_MS=60000
+
+  # Environment
+  DENO_ENV=development
+  ALLOWED_ORIGINS=http://localhost:4321,https://danieltarazona.com
+  ```
+
+#### Task 5.1.3: Main Entry Point and Router
+
+- [ ] **Task 5.1.3**: Create main entry point with routing using Hono framework
+
+  **src/main.ts:**
+
+  ```typescript
+  /**
+   * Main entry point for Deno serverless functions
+   * Uses Hono framework for routing and middleware
+   */
+  import { Hono } from 'hono';
+  import { cors } from 'hono/cors';
+  import { logger } from 'hono/logger';
+  import { secureHeaders } from 'hono/secure-headers';
+  import { timing } from 'hono/timing';
+
+  // Route handlers
+  import { contactRouter } from '@/routes/contact.ts';
+  import { healthRouter } from '@/routes/health.ts';
+  import { medusaProxyRouter } from '@/routes/proxy/medusa.ts';
+
+  // Middleware
+  import { rateLimiter } from '@/middleware/ratelimit.ts';
+
+  // Types
+  type Bindings = {
+    SUPABASE_URL: string;
+    SUPABASE_SERVICE_ROLE_KEY: string;
+    RESEND_API_KEY: string;
+    NOTIFICATION_EMAIL: string;
+    ALLOWED_ORIGINS: string;
+  };
+
+  // Initialize app
+  const app = new Hono<{ Bindings: Bindings }>();
+
+  // Global middleware
+  app.use('*', timing());
+  app.use('*', logger());
+  app.use('*', secureHeaders());
+
+  // CORS configuration
+  app.use('*', cors({
+    origin: (origin, c) => {
+      const allowedOrigins = (Deno.env.get('ALLOWED_ORIGINS') || '').split(',');
+      if (allowedOrigins.includes(origin) || !origin) {
+        return origin;
+      }
+      return allowedOrigins[0]; // Return first allowed origin as fallback
+    },
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposeHeaders: ['X-Request-Id', 'X-Response-Time'],
+    maxAge: 86400,
+    credentials: true,
+  }));
+
+  // Rate limiting (applied to specific routes)
+  app.use('/api/*', rateLimiter({
+    max: parseInt(Deno.env.get('RATE_LIMIT_MAX') || '100'),
+    windowMs: parseInt(Deno.env.get('RATE_LIMIT_WINDOW_MS') || '60000'),
+  }));
+
+  // Health check (no rate limiting)
+  app.route('/health', healthRouter);
+
+  // API routes
+  app.route('/api/contact', contactRouter);
+  app.route('/api/store', medusaProxyRouter);
+
+  // Root route
+  app.get('/', (c) => {
+    return c.json({
+      name: 'Daniel Tarazona API',
+      version: '1.0.0',
+      endpoints: {
+        health: '/health',
+        contact: '/api/contact',
+        store: '/api/store/*',
+      },
+      documentation: 'https://docs.danieltarazona.com/api',
+    });
+  });
+
+  // 404 handler
+  app.notFound((c) => {
+    return c.json({
+      error: 'Not Found',
+      message: `Route ${c.req.method} ${c.req.path} not found`,
+      status: 404,
+    }, 404);
+  });
+
+  // Error handler
+  app.onError((err, c) => {
+    console.error(`[ERROR] ${err.message}`, err.stack);
+
+    return c.json({
+      error: 'Internal Server Error',
+      message: Deno.env.get('DENO_ENV') === 'development'
+        ? err.message
+        : 'An unexpected error occurred',
+      status: 500,
+    }, 500);
+  });
+
+  // Start server (local development) or export for Deno Deploy
+  const port = parseInt(Deno.env.get('PORT') || '8000');
+
+  if (Deno.env.get('DENO_ENV') !== 'production') {
+    console.log(`🦕 Server starting on http://localhost:${port}`);
+  }
+
+  Deno.serve({ port }, app.fetch);
+  ```
+
+  **src/routes/health.ts:**
+
+  ```typescript
+  /**
+   * Health check endpoint for monitoring
+   */
+  import { Hono } from 'hono';
+
+  export const healthRouter = new Hono();
+
+  healthRouter.get('/', async (c) => {
+    const checks = {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: performance.now(),
+      checks: {} as Record<string, { status: string; latency?: number }>,
+    };
+
+    // Check Deno KV availability
+    try {
+      const start = performance.now();
+      const kv = await Deno.openKv();
+      await kv.get(['health', 'check']);
+      checks.checks.kv = {
+        status: 'connected',
+        latency: Math.round(performance.now() - start),
+      };
+    } catch {
+      checks.checks.kv = { status: 'unavailable' };
+    }
+
+    // Check Supabase connectivity (optional)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    if (supabaseUrl) {
+      try {
+        const start = performance.now();
+        const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+          method: 'HEAD',
+          headers: {
+            'apikey': Deno.env.get('SUPABASE_ANON_KEY') || '',
+          },
+        });
+        checks.checks.supabase = {
+          status: response.ok ? 'connected' : 'error',
+          latency: Math.round(performance.now() - start),
+        };
+      } catch {
+        checks.checks.supabase = { status: 'unreachable' };
+      }
+    }
+
+    const allHealthy = Object.values(checks.checks).every(
+      (check) => check.status !== 'unavailable' && check.status !== 'error'
+    );
+
+    return c.json(checks, allHealthy ? 200 : 503);
+  });
+
+  // Readiness probe (for Kubernetes/orchestration)
+  healthRouter.get('/ready', (c) => {
+    return c.json({ ready: true }, 200);
+  });
+
+  // Liveness probe
+  healthRouter.get('/live', (c) => {
+    return c.json({ alive: true }, 200);
+  });
+  ```
+
+#### Task 5.1.4: Rate Limiting Middleware
+
+- [ ] **Task 5.1.4**: Implement rate limiting using Deno KV
+
+  **src/middleware/ratelimit.ts:**
+
+  ```typescript
+  /**
+   * Rate limiting middleware using Deno KV
+   */
+  import { Context, Next } from 'hono';
+
+  interface RateLimitOptions {
+    max: number;           // Maximum requests per window
+    windowMs: number;      // Time window in milliseconds
+    keyPrefix?: string;    // Key prefix for different endpoints
+    keyGenerator?: (c: Context) => string;  // Custom key generation
+    skip?: (c: Context) => boolean;         // Skip rate limiting
+    handler?: (c: Context) => Response;     // Custom rate limit response
+  }
+
+  interface RateLimitEntry {
+    count: number;
+    resetAt: number;
+  }
+
+  export function rateLimiter(options: RateLimitOptions) {
+    const {
+      max = 100,
+      windowMs = 60000,
+      keyPrefix = 'ratelimit',
+      keyGenerator = defaultKeyGenerator,
+      skip,
+      handler = defaultHandler,
+    } = options;
+
+    return async (c: Context, next: Next) => {
+      // Check if should skip rate limiting
+      if (skip && skip(c)) {
+        return next();
+      }
+
+      const key = keyGenerator(c);
+      const now = Date.now();
+
+      try {
+        const kv = await Deno.openKv();
+        const kvKey = [keyPrefix, key];
+
+        // Get current rate limit entry
+        const result = await kv.get<RateLimitEntry>(kvKey);
+        let entry = result.value;
+
+        if (!entry || entry.resetAt < now) {
+          // Create new window
+          entry = {
+            count: 1,
+            resetAt: now + windowMs,
+          };
+        } else {
+          // Increment count
+          entry.count += 1;
+        }
+
+        // Check if rate limited
+        if (entry.count > max) {
+          const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+
+          c.header('X-RateLimit-Limit', max.toString());
+          c.header('X-RateLimit-Remaining', '0');
+          c.header('X-RateLimit-Reset', entry.resetAt.toString());
+          c.header('Retry-After', retryAfter.toString());
+
+          return handler(c);
+        }
+
+        // Update entry with atomic operation
+        await kv.atomic()
+          .set(kvKey, entry, { expireIn: windowMs })
+          .commit();
+
+        // Set rate limit headers
+        c.header('X-RateLimit-Limit', max.toString());
+        c.header('X-RateLimit-Remaining', (max - entry.count).toString());
+        c.header('X-RateLimit-Reset', entry.resetAt.toString());
+
+        return next();
+      } catch (error) {
+        // On KV error, allow request but log warning
+        console.warn('[RateLimit] KV error, allowing request:', error);
+        return next();
+      }
+    };
+  }
+
+  function defaultKeyGenerator(c: Context): string {
+    // Use IP address as default key
+    const forwarded = c.req.header('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() ||
+               c.req.header('cf-connecting-ip') ||
+               'unknown';
+    return `${c.req.method}:${c.req.path}:${ip}`;
+  }
+
+  function defaultHandler(c: Context): Response {
+    return c.json({
+      error: 'Too Many Requests',
+      message: 'Rate limit exceeded. Please try again later.',
+      status: 429,
+    }, 429);
+  }
+
+  // Stricter rate limiter for sensitive endpoints (like contact form)
+  export const strictRateLimiter = rateLimiter({
+    max: 5,
+    windowMs: 60000, // 5 requests per minute
+    keyPrefix: 'strict_ratelimit',
+  });
+
+  // Lenient rate limiter for read operations
+  export const lenientRateLimiter = rateLimiter({
+    max: 1000,
+    windowMs: 60000, // 1000 requests per minute
+    keyPrefix: 'lenient_ratelimit',
+  });
+  ```
+
+#### Task 5.1.5: Contact Form Handler
+
+- [ ] **Task 5.1.5**: Create contact form API endpoint
+
+  **src/routes/contact.ts:**
+
+  ```typescript
+  /**
+   * Contact form API handler
+   */
+  import { Hono } from 'hono';
+  import { z } from 'zod';
+  import { createClient } from '@supabase/supabase-js';
+  import { strictRateLimiter } from '@/middleware/ratelimit.ts';
+
+  export const contactRouter = new Hono();
+
+  // Validation schema
+  const ContactSchema = z.object({
+    name: z.string()
+      .min(2, 'Name must be at least 2 characters')
+      .max(100, 'Name must be less than 100 characters'),
+    email: z.string()
+      .email('Invalid email address')
+      .max(255, 'Email must be less than 255 characters'),
+    subject: z.string()
+      .max(200, 'Subject must be less than 200 characters')
+      .optional(),
+    message: z.string()
+      .min(10, 'Message must be at least 10 characters')
+      .max(5000, 'Message must be less than 5000 characters'),
+    honeypot: z.string()
+      .max(0, 'Bot detected')
+      .optional(),
+  });
+
+  type ContactInput = z.infer<typeof ContactSchema>;
+
+  // Apply strict rate limiting to contact endpoint
+  contactRouter.use('*', strictRateLimiter);
+
+  contactRouter.post('/', async (c) => {
+    const requestId = crypto.randomUUID();
+    c.header('X-Request-Id', requestId);
+
+    try {
+      // Parse and validate request body
+      const body = await c.req.json();
+      const validationResult = ContactSchema.safeParse(body);
+
+      if (!validationResult.success) {
+        return c.json({
+          success: false,
+          error: 'Validation failed',
+          details: validationResult.error.flatten().fieldErrors,
+          requestId,
+        }, 400);
+      }
+
+      const data = validationResult.data;
+
+      // Check honeypot (spam protection)
+      if (data.honeypot && data.honeypot.length > 0) {
+        // Silently "accept" but don't process
+        console.log(`[SPAM] Honeypot triggered for request ${requestId}`);
+        return c.json({
+          success: true,
+          message: 'Thank you for your message!',
+          requestId,
+        }, 200);
+      }
+
+      // Get request metadata
+      const ip = c.req.header('cf-connecting-ip') ||
+                 c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
+                 'unknown';
+      const userAgent = c.req.header('user-agent') || 'unknown';
+
+      // Calculate spam score
+      const spamScore = calculateSpamScore(data, ip, userAgent);
+
+      // Initialize Supabase client
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      );
+
+      // Insert into database
+      const { data: submission, error: dbError } = await supabase
+        .from('contact_submissions')
+        .insert({
+          name: data.name,
+          email: data.email,
+          subject: data.subject || null,
+          message: data.message,
+          ip_address: ip,
+          user_agent: userAgent,
+          spam_score: spamScore,
+          status: spamScore > 0.7 ? 'spam' : 'pending',
+        })
+        .select('id, created_at')
+        .single();
+
+      if (dbError) {
+        console.error(`[ERROR] Database insert failed: ${dbError.message}`, dbError);
+        throw new Error('Failed to save submission');
+      }
+
+      // Send email notification (non-blocking)
+      sendEmailNotification(data, submission.id).catch((err) => {
+        console.error(`[ERROR] Email notification failed: ${err.message}`);
+      });
+
+      return c.json({
+        success: true,
+        message: 'Thank you for your message! We\'ll get back to you soon.',
+        requestId,
+        submissionId: submission.id,
+      }, 201);
+
+    } catch (error) {
+      console.error(`[ERROR] Contact form error:`, error);
+
+      return c.json({
+        success: false,
+        error: 'Failed to process your message',
+        message: 'Please try again or email us directly at hello@danieltarazona.com',
+        requestId,
+      }, 500);
+    }
+  });
+
+  // Health check for contact endpoint
+  contactRouter.get('/', (c) => {
+    return c.json({
+      endpoint: '/api/contact',
+      method: 'POST',
+      status: 'operational',
+      rateLimit: '5 requests per minute',
+    });
+  });
+
+  /**
+   * Calculate spam score based on various factors
+   */
+  function calculateSpamScore(
+    data: ContactInput,
+    ip: string,
+    userAgent: string
+  ): number {
+    let score = 0;
+
+    // Check for common spam patterns in message
+    const spamPatterns = [
+      /\b(viagra|cialis|casino|lottery|winner|prize|free money)\b/i,
+      /\b(click here|buy now|act now|limited time)\b/i,
+      /https?:\/\/[^\s]+/g, // URLs in message
+      /\b\d{10,}\b/, // Long number sequences
+    ];
+
+    for (const pattern of spamPatterns) {
+      if (pattern.test(data.message)) {
+        score += 0.2;
+      }
+    }
+
+    // Check for suspicious email domains
+    const suspiciousDomains = ['tempmail', 'guerrilla', '10minute', 'throwaway'];
+    const emailDomain = data.email.split('@')[1]?.toLowerCase() || '';
+    if (suspiciousDomains.some(d => emailDomain.includes(d))) {
+      score += 0.3;
+    }
+
+    // Check for very short or generic messages
+    if (data.message.length < 20) {
+      score += 0.1;
+    }
+
+    // Check user agent
+    if (!userAgent || userAgent === 'unknown' || userAgent.length < 10) {
+      score += 0.2;
+    }
+
+    // Cap score at 1.0
+    return Math.min(score, 1.0);
+  }
+
+  /**
+   * Send email notification for new contact submission
+   */
+  async function sendEmailNotification(
+    data: ContactInput,
+    submissionId: string
+  ): Promise<void> {
+    const resendKey = Deno.env.get('RESEND_API_KEY');
+    const notificationEmail = Deno.env.get('NOTIFICATION_EMAIL');
+
+    if (!resendKey || !notificationEmail) {
+      console.warn('[WARN] Email notification not configured');
+      return;
+    }
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: Deno.env.get('FROM_EMAIL') || 'noreply@danieltarazona.com',
+        to: notificationEmail,
+        reply_to: data.email,
+        subject: `New Contact: ${data.subject || 'Message from ' + data.name}`,
+        html: `
+          <h2>New Contact Form Submission</h2>
+          <p><strong>From:</strong> ${escapeHtml(data.name)} &lt;${escapeHtml(data.email)}&gt;</p>
+          <p><strong>Subject:</strong> ${escapeHtml(data.subject || 'No subject')}</p>
+          <p><strong>Submission ID:</strong> ${submissionId}</p>
+          <hr>
+          <h3>Message:</h3>
+          <p style="white-space: pre-wrap;">${escapeHtml(data.message)}</p>
+        `,
+        text: `
+New Contact Form Submission
+From: ${data.name} <${data.email}>
+Subject: ${data.subject || 'No subject'}
+Submission ID: ${submissionId}
+
+Message:
+${data.message}
+        `.trim(),
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Resend API error: ${error}`);
+    }
+  }
+
+  function escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+  ```
+
+#### Task 5.1.6: Deno Deploy Configuration
+
+- [ ] **Task 5.1.6**: Configure and deploy to Deno Deploy
+
+  **Deno Deploy Setup:**
+
+  ```bash
+  # Install deployctl CLI
+  deno install -Arf jsr:@deno/deployctl
+
+  # Or use npx (alternative)
+  # npx deployctl deploy
+
+  # Verify installation
+  deployctl --version
+  ```
+
+  **Deployment Methods:**
+
+  **Method 1: GitHub Integration (Recommended)**
+
+  1. Go to [dash.deno.com](https://dash.deno.com)
+  2. Click "New Project"
+  3. Select "Deploy from GitHub"
+  4. Choose your repository
+  5. Configure:
+     - **Entry point**: `src/main.ts`
+     - **Build step**: (none needed for Deno)
+     - **Install step**: (none needed)
+  6. Set environment variables in project settings
+  7. Deploy!
+
+  **Method 2: CLI Deployment**
+
+  ```bash
+  # Login to Deno Deploy
+  deployctl login
+
+  # Deploy project (creates new project if not exists)
+  deployctl deploy \
+    --project=danieltarazona-api \
+    --prod \
+    src/main.ts
+
+  # Deploy with environment variables
+  deployctl deploy \
+    --project=danieltarazona-api \
+    --prod \
+    --env=SUPABASE_URL=https://xxx.supabase.co \
+    --env=SUPABASE_SERVICE_ROLE_KEY=xxx \
+    src/main.ts
+  ```
+
+  **Method 3: GitHub Actions**
+
+  ```yaml
+  # .github/workflows/deploy-deno.yml
+  name: Deploy to Deno Deploy
+
+  on:
+    push:
+      branches: [main]
+      paths:
+        - 'deno-functions/**'
+    workflow_dispatch:
+
+  jobs:
+    deploy:
+      runs-on: ubuntu-latest
+
+      permissions:
+        id-token: write  # Required for OIDC
+        contents: read
+
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+
+        - name: Setup Deno
+          uses: denoland/setup-deno@v1
+          with:
+            deno-version: v2.x
+
+        - name: Run tests
+          working-directory: deno-functions
+          run: deno task test
+
+        - name: Type check
+          working-directory: deno-functions
+          run: deno task check
+
+        - name: Deploy to Deno Deploy
+          uses: denoland/deployctl@v1
+          with:
+            project: danieltarazona-api
+            entrypoint: deno-functions/src/main.ts
+            root: deno-functions
+  ```
+
+  **Environment Variables in Deno Deploy:**
+
+  Set via Dashboard (Settings → Environment Variables):
+
+  ```
+  SUPABASE_URL=https://your-project.supabase.co
+  SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIs...
+  SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIs...
+  RESEND_API_KEY=re_xxxxxxxxxxxxx
+  NOTIFICATION_EMAIL=admin@danieltarazona.com
+  FROM_EMAIL=noreply@danieltarazona.com
+  MEDUSA_BACKEND_URL=https://api.store.danieltarazona.com
+  MEDUSA_PUBLISHABLE_KEY=pk_xxxxxxxxxxxxx
+  RATE_LIMIT_MAX=100
+  RATE_LIMIT_WINDOW_MS=60000
+  DENO_ENV=production
+  ALLOWED_ORIGINS=https://danieltarazona.com,https://store.danieltarazona.com
+  ```
+
+  **Custom Domain Setup:**
+
+  ```bash
+  # Via Dashboard: Settings → Domains → Add Domain
+  # Add: api.danieltarazona.com
+
+  # DNS Configuration (Cloudflare):
+  # Type: CNAME
+  # Name: api
+  # Target: danieltarazona-api.deno.dev
+  # Proxy: ON (orange cloud)
+  ```
+
+#### Task 5.1.7: Common Serverless Patterns
+
+- [ ] **Task 5.1.7**: Implement common serverless function patterns
+
+  **Pattern 1: API Proxy (Hide API Keys)**
+
+  **src/routes/proxy/medusa.ts:**
+
+  ```typescript
+  /**
+   * Medusa API Proxy - Hides backend URL and adds CORS
+   */
+  import { Hono } from 'hono';
+
+  export const medusaProxyRouter = new Hono();
+
+  const MEDUSA_URL = Deno.env.get('MEDUSA_BACKEND_URL') || 'http://localhost:9000';
+
+  // Proxy all store API requests
+  medusaProxyRouter.all('/*', async (c) => {
+    const path = c.req.path.replace('/api/store', '/store');
+    const url = `${MEDUSA_URL}${path}`;
+
+    const headers = new Headers();
+    headers.set('Content-Type', 'application/json');
+
+    // Forward publishable key if present
+    const pubKey = c.req.header('x-publishable-api-key');
+    if (pubKey) {
+      headers.set('x-publishable-api-key', pubKey);
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: c.req.method,
+        headers,
+        body: c.req.method !== 'GET' ? await c.req.text() : undefined,
+      });
+
+      const data = await response.json();
+      return c.json(data, response.status);
+    } catch (error) {
+      console.error('[Proxy Error]', error);
+      return c.json({ error: 'Proxy error' }, 502);
+    }
+  });
+  ```
+
+  **Pattern 2: Scheduled Tasks (Cron)**
+
+  ```typescript
+  /**
+   * Scheduled task handler for Deno Deploy
+   * Configure in deno.json or deploy dashboard
+   */
+
+  // Handler for scheduled invocations
+  Deno.cron('daily-analytics-sync', '0 0 * * *', async () => {
+    console.log('[CRON] Starting daily analytics sync');
+
+    try {
+      // Fetch analytics from various sources
+      const [pageviews, orders] = await Promise.all([
+        fetchPageviews(),
+        fetchOrders(),
+      ]);
+
+      // Store aggregated data
+      const kv = await Deno.openKv();
+      const date = new Date().toISOString().split('T')[0];
+
+      await kv.set(['analytics', date], {
+        pageviews,
+        orders: orders.length,
+        revenue: orders.reduce((sum, o) => sum + o.total, 0),
+        syncedAt: new Date().toISOString(),
+      });
+
+      console.log(`[CRON] Analytics synced for ${date}`);
+    } catch (error) {
+      console.error('[CRON] Analytics sync failed:', error);
+    }
+  });
+
+  async function fetchPageviews(): Promise<number> {
+    // Implement Cloudflare Analytics API call
+    return 0;
+  }
+
+  async function fetchOrders(): Promise<{ total: number }[]> {
+    // Implement Medusa orders API call
+    return [];
+  }
+  ```
+
+  **Pattern 3: Webhook Handler**
+
+  ```typescript
+  /**
+   * Webhook handler for external service events
+   */
+  import { Hono } from 'hono';
+  import { createHmac } from 'node:crypto';
+
+  export const webhookRouter = new Hono();
+
+  // Medusa webhook handler
+  webhookRouter.post('/medusa', async (c) => {
+    const signature = c.req.header('x-medusa-signature');
+    const body = await c.req.text();
+
+    // Verify webhook signature
+    const secret = Deno.env.get('MEDUSA_WEBHOOK_SECRET');
+    if (secret && signature) {
+      const expectedSig = createHmac('sha256', secret)
+        .update(body)
+        .digest('hex');
+
+      if (signature !== expectedSig) {
+        return c.json({ error: 'Invalid signature' }, 401);
+      }
+    }
+
+    const event = JSON.parse(body);
+
+    switch (event.type) {
+      case 'order.placed':
+        await handleOrderPlaced(event.data);
+        break;
+      case 'order.shipped':
+        await handleOrderShipped(event.data);
+        break;
+      case 'product.updated':
+        await invalidateProductCache(event.data);
+        break;
+      default:
+        console.log(`[Webhook] Unhandled event: ${event.type}`);
+    }
+
+    return c.json({ received: true });
+  });
+
+  async function handleOrderPlaced(order: unknown): Promise<void> {
+    console.log('[Webhook] Order placed:', order);
+    // Send order confirmation email, update analytics, etc.
+  }
+
+  async function handleOrderShipped(order: unknown): Promise<void> {
+    console.log('[Webhook] Order shipped:', order);
+    // Send shipping notification email
+  }
+
+  async function invalidateProductCache(product: unknown): Promise<void> {
+    console.log('[Webhook] Product updated:', product);
+    // Invalidate CDN cache, trigger rebuild, etc.
+  }
+  ```
+
+  **Pattern 4: Image Processing (On-Demand)**
+
+  ```typescript
+  /**
+   * On-demand image resizing/optimization
+   */
+  import { Hono } from 'hono';
+
+  export const imageRouter = new Hono();
+
+  imageRouter.get('/:width/:height/*', async (c) => {
+    const width = parseInt(c.req.param('width'));
+    const height = parseInt(c.req.param('height'));
+    const imagePath = c.req.path.split('/').slice(4).join('/');
+
+    // Validate dimensions
+    if (width > 2000 || height > 2000 || width < 1 || height < 1) {
+      return c.json({ error: 'Invalid dimensions' }, 400);
+    }
+
+    const sourceUrl = `${Deno.env.get('STORAGE_URL')}/${imagePath}`;
+
+    try {
+      // Use Cloudflare Image Resizing or similar service
+      const resizedUrl = `https://images.danieltarazona.com/cdn-cgi/image/width=${width},height=${height},fit=cover,format=auto/${sourceUrl}`;
+
+      return c.redirect(resizedUrl, 302);
+    } catch (error) {
+      console.error('[Image] Resize failed:', error);
+      return c.json({ error: 'Image processing failed' }, 500);
+    }
+  });
+  ```
+
+#### Task 5.1.8: Testing Deno Functions
+
+- [ ] **Task 5.1.8**: Create tests for serverless functions
+
+  **tests/routes/contact_test.ts:**
+
+  ```typescript
+  /**
+   * Contact API endpoint tests
+   */
+  import { assertEquals, assertExists } from '@std/assert';
+  import { describe, it, beforeAll, afterAll } from '@std/testing/bdd';
+
+  const BASE_URL = 'http://localhost:8000';
+
+  describe('Contact API', () => {
+    describe('POST /api/contact', () => {
+      it('should accept valid contact submission', async () => {
+        const response = await fetch(`${BASE_URL}/api/contact`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: 'Test User',
+            email: 'test@example.com',
+            subject: 'Test Subject',
+            message: 'This is a test message with enough characters.',
+          }),
+        });
+
+        assertEquals(response.status, 201);
+
+        const data = await response.json();
+        assertEquals(data.success, true);
+        assertExists(data.requestId);
+        assertExists(data.submissionId);
+      });
+
+      it('should reject invalid email', async () => {
+        const response = await fetch(`${BASE_URL}/api/contact`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: 'Test User',
+            email: 'not-an-email',
+            message: 'This is a test message with enough characters.',
+          }),
+        });
+
+        assertEquals(response.status, 400);
+
+        const data = await response.json();
+        assertEquals(data.success, false);
+        assertExists(data.details.email);
+      });
+
+      it('should reject short message', async () => {
+        const response = await fetch(`${BASE_URL}/api/contact`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: 'Test User',
+            email: 'test@example.com',
+            message: 'Too short',
+          }),
+        });
+
+        assertEquals(response.status, 400);
+
+        const data = await response.json();
+        assertEquals(data.success, false);
+        assertExists(data.details.message);
+      });
+
+      it('should silently accept honeypot submissions', async () => {
+        const response = await fetch(`${BASE_URL}/api/contact`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: 'Bot User',
+            email: 'bot@spam.com',
+            message: 'This is a spam message with enough characters.',
+            honeypot: 'I am a bot',
+          }),
+        });
+
+        assertEquals(response.status, 200);
+
+        const data = await response.json();
+        assertEquals(data.success, true);
+      });
+    });
+
+    describe('GET /api/contact', () => {
+      it('should return endpoint info', async () => {
+        const response = await fetch(`${BASE_URL}/api/contact`);
+
+        assertEquals(response.status, 200);
+
+        const data = await response.json();
+        assertEquals(data.endpoint, '/api/contact');
+        assertEquals(data.method, 'POST');
+      });
+    });
+  });
+
+  describe('Health API', () => {
+    it('should return health status', async () => {
+      const response = await fetch(`${BASE_URL}/health`);
+
+      assertEquals(response.status, 200);
+
+      const data = await response.json();
+      assertEquals(data.status, 'healthy');
+      assertExists(data.timestamp);
+      assertExists(data.checks);
+    });
+
+    it('should return readiness status', async () => {
+      const response = await fetch(`${BASE_URL}/health/ready`);
+
+      assertEquals(response.status, 200);
+
+      const data = await response.json();
+      assertEquals(data.ready, true);
+    });
+  });
+  ```
+
+  **Run tests:**
+
+  ```bash
+  # Start server in one terminal
+  deno task dev
+
+  # Run tests in another terminal
+  deno task test
+
+  # Run with coverage
+  deno task test:coverage
+
+  # View coverage report
+  deno coverage coverage/
+  ```
+
+### Phase 4 Task Summary: Deno Serverless Functions
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| 5.1.1 | Install Deno runtime | [ ] |
+| 5.1.2 | Create project structure for serverless functions | [ ] |
+| 5.1.3 | Create main entry point with Hono router | [ ] |
+| 5.1.4 | Implement rate limiting middleware with Deno KV | [ ] |
+| 5.1.5 | Create contact form API endpoint | [ ] |
+| 5.1.6 | Configure Deno Deploy for production | [ ] |
+| 5.1.7 | Implement common serverless patterns | [ ] |
+| 5.1.8 | Create tests for serverless functions | [ ] |
+
+### Deno Resources & Documentation
+
+| Resource | URL |
+|----------|-----|
+| Deno Manual | https://docs.deno.com/runtime/manual |
+| Deno Deploy Docs | https://docs.deno.com/deploy/manual |
+| Hono Framework | https://hono.dev |
+| Deno Standard Library | https://deno.land/std |
+| Deno KV | https://docs.deno.com/deploy/kv/manual |
+| deployctl CLI | https://docs.deno.com/deploy/manual/deployctl |
+
+---
+
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*
