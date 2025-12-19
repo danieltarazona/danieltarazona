@@ -1,0 +1,10 @@
+{
+  "discovered_files": {
+    "ROADMAP.md": {
+      "description": "Added Service Connection Flow section with detailed ASCII diagrams showing: 1) Service Connection Architecture with End Users \u2192 Cloudflare CDN \u2192 Cloudflare Pages/Tunnel \u2192 Astro sites \u2192 Medusa API \u2192 PostgreSQL, 2) Data Flow Summary for portfolio, e-commerce, and admin flows, 3) Connection Protocols table with ports and security details",
+      "category": "architecture",
+      "discovered_at": "2025-12-19T16:53:45.664553+00:00"
+    }
+  },
+  "last_updated": "2025-12-19T16:53:45.664563+00:00"
+}

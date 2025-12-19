@@ -1,0 +1,586 @@
+{
+  "spec_id": "001-create-static-website-roadmap-with-portfolio-store",
+  "title": "Create Static Website Roadmap with Portfolio & Store",
+  "description": "Create comprehensive ROADMAP.md document outlining the complete setup and configuration of danieltarazona.com with integrated portfolio and e-commerce store using JAMstack architecture (Astro, Medusa 2.0, Cloudflare, Coolify, Supabase, Deno)",
+  "workflow_type": "feature",
+  "created_at": "2025-01-20T00:00:00Z",
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Document Structure & Overview",
+      "description": "Create the foundational ROADMAP.md file with project overview, architecture diagram, and technology stack table",
+      "order": 1,
+      "subtasks": [
+        {
+          "id": "1.1",
+          "title": "Create ROADMAP.md with header and project overview",
+          "description": "Initialize ROADMAP.md file with title, project description, target domains (danieltarazona.com, store.danieltarazona.com), and high-level goals",
+          "status": "completed",
+          "estimated_minutes": 10,
+          "files_to_create": [
+            "ROADMAP.md"
+          ],
+          "files_to_modify": [],
+          "acceptance_criteria": [
+            "ROADMAP.md exists in project root",
+            "Contains project title and description",
+            "Lists target domains and their purposes"
+          ],
+          "notes": "Successfully created ROADMAP.md with title, project description, target domains (danieltarazona.com, store.danieltarazona.com), high-level goals, architecture diagram, key features, and success metrics. Committed as 844ec07.",
+          "updated_at": "2025-12-19T16:49:38.630042+00:00"
+        },
+        {
+          "id": "1.2",
+          "title": "Add technology stack overview table",
+          "description": "Create comprehensive table listing all services (Astro, Cloudflare, Medusa 2.0, Coolify, Supabase, Nhost, Deno) with their purpose, free tier status, and CLI tools",
+          "status": "completed",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "All 7 services are listed in table format",
+            "CLI tool names are included for each service",
+            "Free tier availability is documented"
+          ],
+          "notes": "Added comprehensive Technology Stack section to ROADMAP.md including: Services Overview table with all 7 services (Astro, Cloudflare, Medusa 2.0, Coolify, Supabase, Nhost, Deno) listing purpose, category, free tier status, CLI tools, and installation commands. Added detailed Service Details sections with version info, key features, use cases, documentation links, and bash command examples. Included Required Development Tools table and Quick Setup Script. Committed as dcc32a2.",
+          "updated_at": "2025-12-19T16:51:39.452992+00:00"
+        },
+        {
+          "id": "1.3",
+          "title": "Document architecture overview with service relationships",
+          "description": "Add ASCII architecture diagram or description showing how services connect: Astro frontend -> Cloudflare CDN -> Medusa backend -> PostgreSQL (Supabase)",
+          "status": "completed",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Architecture relationships are clearly documented",
+            "Service connections are explained",
+            "Data flow is visible"
+          ],
+          "notes": "Added comprehensive ASCII architecture diagram to ROADMAP.md showing service connection flow: Astro frontend \u2192 Cloudflare CDN \u2192 Medusa backend \u2192 PostgreSQL (Supabase). Includes data flow summary, connection protocols table, and visual representation of portfolio site flow, e-commerce store flow, and admin dashboard flow.",
+          "updated_at": "2025-12-19T16:53:45.640029+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-2",
+      "name": "Infrastructure & DNS Setup Phase",
+      "description": "Document Phase 1 of the roadmap covering VPS options, Cloudflare DNS/CDN configuration, and domain setup",
+      "order": 2,
+      "subtasks": [
+        {
+          "id": "2.1",
+          "title": "Document VPS hosting options (Hetzner + free alternatives)",
+          "description": "Create section comparing Hetzner Cloud pricing/specs with free alternatives (Oracle Cloud, Google Cloud free tier, Azure free tier). Include minimum requirements for Coolify + Medusa",
+          "status": "completed",
+          "estimated_minutes": 20,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Hetzner pricing and specs documented",
+            "At least 2 free VPS alternatives listed",
+            "Minimum VPS requirements specified (RAM, CPU, storage)",
+            "Trade-offs between options explained"
+          ],
+          "notes": "Added comprehensive VPS hosting comparison section to ROADMAP.md. Documented: (1) Minimum requirements for Coolify + Medusa (2GB min RAM, 4GB recommended, 2-4 vCPU, 40-80GB SSD), (2) Hetzner Cloud pricing with CX22/CX32/CX42 plans and setup commands, (3) Free alternatives including Oracle Cloud ARM (best free option), Google Cloud e2-micro (too small), Azure B1s (marginal, 12mo only), AWS t2.micro (too small, 12mo only), (4) Comparison summary table with verdicts, (5) Recommended approach diagram for dev/production, (6) VPS setup tasks with Docker and Coolify installation commands. Committed as 5c15364.",
+          "updated_at": "2025-12-19T16:55:51.129504+00:00"
+        },
+        {
+          "id": "2.2",
+          "title": "Document Cloudflare DNS configuration",
+          "description": "Add tasks for Cloudflare setup: adding domain, configuring A/AAAA records for apex domain, CNAME for store subdomain, enabling proxy, SSL/TLS settings",
+          "status": "completed",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Wrangler CLI installation documented",
+            "DNS record configuration explained",
+            "SSL/TLS configuration included",
+            "Proxy settings documented"
+          ],
+          "notes": "Added comprehensive Cloudflare DNS Configuration section to ROADMAP.md including: (1) Wrangler CLI installation and authentication commands, (2) Adding domain to Cloudflare steps with nameserver configuration, (3) DNS record configuration diagram showing apex domain, www subdomain, and store subdomain CNAME records, (4) Tasks 2.5-2.8 for DNS record creation with Cloudflare API commands, (5) A/AAAA record documentation for IPv6 support, (6) Cloudflare proxy settings explanation with feature benefits table, (7) SSL/TLS configuration including encryption modes comparison, Tasks 2.10-2.12 for SSL setup, origin certificates, and edge certificates, (8) Additional security settings (HSTS, security level, browser integrity check), (9) DNS Configuration Summary table. Committed as c765fa8.",
+          "updated_at": "2025-12-19T16:57:53.109759+00:00"
+        },
+        {
+          "id": "2.3",
+          "title": "Document Cloudflare Tunnel setup for self-hosted services",
+          "description": "Add tasks for setting up Cloudflare Tunnel (cloudflared) to expose Medusa and Coolify without opening ports",
+          "status": "pending",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Cloudflared installation documented",
+            "Tunnel creation commands included",
+            "Ingress rules for multiple services explained"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase-3",
+      "name": "Database & Backend Services Phase",
+      "description": "Document Phase 2 covering PostgreSQL setup with Supabase/Nhost, Medusa 2.0 headless commerce configuration",
+      "order": 3,
+      "subtasks": [
+        {
+          "id": "3.1",
+          "title": "Document Supabase PostgreSQL setup",
+          "description": "Add tasks for Supabase project creation, CLI installation, database connection, schema migrations, and free tier limits (500MB)",
+          "status": "pending",
+          "estimated_minutes": 20,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Supabase CLI installation documented",
+            "Project creation steps included",
+            "Connection string configuration explained",
+            "Free tier limits documented (500MB)"
+          ]
+        },
+        {
+          "id": "3.2",
+          "title": "Document Nhost as alternative BaaS option",
+          "description": "Add section for Nhost CLI setup, project configuration, and comparison with Supabase for this use case",
+          "status": "pending",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Nhost CLI installation documented",
+            "Setup commands included",
+            "Comparison with Supabase provided"
+          ]
+        },
+        {
+          "id": "3.3",
+          "title": "Document Medusa 2.0 headless commerce setup",
+          "description": "Add comprehensive section for Medusa 2.0: CLI installation, project scaffolding, database configuration, environment variables, product limits (100 products)",
+          "status": "pending",
+          "estimated_minutes": 25,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Medusa CLI installation documented",
+            "Project creation commands included",
+            "PostgreSQL connection configured",
+            "Environment variables listed",
+            "100 product limit scope noted"
+          ]
+        },
+        {
+          "id": "3.4",
+          "title": "Add Vendure vs Medusa comparison for multi-site templating",
+          "description": "Create comparison table analyzing both platforms for multi-brand/multi-domain scenarios (Adam Robotics, Adam Automotive, Adam Defense). Include recommendation",
+          "status": "pending",
+          "estimated_minutes": 20,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Comparison table with key criteria",
+            "Multi-tenancy support compared",
+            "Template reusability analyzed",
+            "Clear recommendation provided"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase-4",
+      "name": "Frontend Development Phase",
+      "description": "Document Phase 3 covering Astro static site setup for main portfolio and store storefront",
+      "order": 4,
+      "subtasks": [
+        {
+          "id": "4.1",
+          "title": "Document Astro project setup for main site",
+          "description": "Add tasks for Astro CLI, project scaffolding with minimal template, TypeScript configuration, and project structure for portfolio/photo gallery",
+          "status": "pending",
+          "estimated_minutes": 20,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "npm create astro command documented",
+            "Project structure explained",
+            "TypeScript setup included",
+            "Portfolio/gallery structure outlined"
+          ]
+        },
+        {
+          "id": "4.2",
+          "title": "Document Astro storefront integration with Medusa",
+          "description": "Add tasks for connecting Astro storefront to Medusa API, product listing pages, cart functionality, and checkout flow",
+          "status": "pending",
+          "estimated_minutes": 20,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Medusa API integration documented",
+            "Product page structure outlined",
+            "Cart and checkout flow described"
+          ]
+        },
+        {
+          "id": "4.3",
+          "title": "Document contact form with PostgreSQL persistence",
+          "description": "Add detailed tasks for contact form implementation: form component, validation, Supabase table schema, API endpoint (Deno/Workers), email notifications",
+          "status": "pending",
+          "estimated_minutes": 20,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Form component structure documented",
+            "PostgreSQL table schema included",
+            "API endpoint for form submission",
+            "Validation requirements listed"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase-5",
+      "name": "Serverless Functions Phase",
+      "description": "Document Phase 4 covering Deno serverless functions and Cloudflare Workers for backend logic",
+      "order": 5,
+      "subtasks": [
+        {
+          "id": "5.1",
+          "title": "Document Deno runtime setup and deployment",
+          "description": "Add tasks for Deno installation, project structure, Deno Deploy configuration, and common serverless function patterns",
+          "status": "pending",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Deno CLI installation documented",
+            "Project structure for functions",
+            "Deno Deploy setup included"
+          ]
+        },
+        {
+          "id": "5.2",
+          "title": "Document Cloudflare Workers configuration",
+          "description": "Add tasks for Workers project setup with Wrangler, routing configuration, and integration points with main site",
+          "status": "pending",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Wrangler configuration documented",
+            "Worker routes explained",
+            "Environment bindings included"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase-6",
+      "name": "Deployment & Orchestration Phase",
+      "description": "Document Phase 5 covering Coolify self-hosting platform setup and CI/CD pipelines",
+      "order": 6,
+      "subtasks": [
+        {
+          "id": "6.1",
+          "title": "Document Coolify installation and configuration",
+          "description": "Add tasks for Coolify self-hosted installation on VPS, Docker configuration, project deployment, and environment management",
+          "status": "pending",
+          "estimated_minutes": 20,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Coolify installation script documented",
+            "Docker requirements specified",
+            "Project deployment workflow explained",
+            "Environment variables management included"
+          ]
+        },
+        {
+          "id": "6.2",
+          "title": "Document CI/CD pipeline with GitHub Actions",
+          "description": "Add tasks for GitHub Actions workflow setup following existing snake.yml pattern, automated deployments to Coolify/Cloudflare Pages",
+          "status": "pending",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "GitHub Actions workflow structure documented",
+            "Deployment triggers explained",
+            "Build and deploy steps included"
+          ]
+        },
+        {
+          "id": "6.3",
+          "title": "Document Cloudflare Pages deployment alternative",
+          "description": "Add section for deploying Astro static site directly to Cloudflare Pages as alternative to Coolify for frontend",
+          "status": "pending",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Pages project setup documented",
+            "Build configuration included",
+            "Comparison with Coolify deployment"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase-7",
+      "name": "Features & Configuration Phase",
+      "description": "Document feature checklist, environment variables, security considerations, and backup strategies",
+      "order": 7,
+      "subtasks": [
+        {
+          "id": "7.1",
+          "title": "Create comprehensive feature checklist with priorities",
+          "description": "Add categorized feature list: required features (portfolio, contact form, store), optional features (blog, analytics, newsletter), with priority levels (P0, P1, P2)",
+          "status": "pending",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Features categorized by type",
+            "Priority levels assigned",
+            "Task checkboxes for tracking"
+          ]
+        },
+        {
+          "id": "7.2",
+          "title": "Document all required environment variables",
+          "description": "Create comprehensive list of all environment variables for each service with descriptions and example values",
+          "status": "pending",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "All env vars from spec documented",
+            "Grouped by service",
+            "Example values provided (redacted)"
+          ]
+        },
+        {
+          "id": "7.3",
+          "title": "Document security considerations and secrets management",
+          "description": "Add section covering API key security, secrets management strategies, security headers, and authentication considerations",
+          "status": "pending",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Secrets management strategies documented",
+            "Security headers mentioned",
+            "Authentication approach outlined"
+          ]
+        },
+        {
+          "id": "7.4",
+          "title": "Document database backup and migration strategies",
+          "description": "Add tasks for PostgreSQL backup automation, Medusa schema migrations, and disaster recovery procedures",
+          "status": "pending",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Backup automation documented",
+            "Migration strategy explained",
+            "Recovery procedures included"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase-8",
+      "name": "Template & Documentation Phase",
+      "description": "Document multi-site template structure and finalize ROADMAP.md",
+      "order": 8,
+      "subtasks": [
+        {
+          "id": "8.1",
+          "title": "Document multi-site template structure for reusability",
+          "description": "Add section explaining how this setup serves as a template for Adam Robotics, Adam Automotive, Adam Defense with consistent theming and shared infrastructure",
+          "status": "pending",
+          "estimated_minutes": 20,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Template structure explained",
+            "Multi-domain approach documented",
+            "Theming strategy outlined",
+            "Shared vs unique components identified"
+          ]
+        },
+        {
+          "id": "8.2",
+          "title": "Add edge cases and free tier limits documentation",
+          "description": "Document edge cases: Supabase 500MB limit, Cloudflare rate limits, VPS resource constraints, and mitigation strategies",
+          "status": "pending",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Free tier limits documented for each service",
+            "Scaling triggers identified",
+            "Upgrade paths explained"
+          ]
+        },
+        {
+          "id": "8.3",
+          "title": "Final review and validation of ROADMAP.md",
+          "description": "Ensure document meets all acceptance criteria: 5+ phases, 30+ tasks, all services documented, proper markdown formatting, code blocks with syntax highlighting",
+          "status": "pending",
+          "estimated_minutes": 15,
+          "files_to_create": [],
+          "files_to_modify": [
+            "ROADMAP.md"
+          ],
+          "acceptance_criteria": [
+            "Minimum 200 lines",
+            "At least 5 phases with ## Phase headers",
+            "At least 30 task checkboxes",
+            "All code blocks have language identifiers",
+            "Document validates as proper Markdown"
+          ]
+        }
+      ]
+    }
+  ],
+  "qa_criteria": {
+    "unit_tests": [
+      {
+        "test": "Markdown Lint",
+        "file": "ROADMAP.md",
+        "verification": "Document passes markdown linting (no syntax errors)"
+      },
+      {
+        "test": "Link Validation",
+        "file": "ROADMAP.md",
+        "verification": "All external links are valid (if any)"
+      }
+    ],
+    "integration_tests": [
+      {
+        "test": "Script Execution",
+        "services": "All services",
+        "verification": "Sample scripts are syntactically valid bash/shell"
+      },
+      {
+        "test": "Command Accuracy",
+        "services": "CLI tools",
+        "verification": "Documented CLI commands match current tool versions"
+      }
+    ],
+    "document_verification": {
+      "file_exists": "ls -la ROADMAP.md",
+      "minimum_lines": "wc -l ROADMAP.md >= 200",
+      "phase_count": "grep -c '^## Phase' ROADMAP.md >= 5",
+      "task_count": "grep -c '^- \\[ \\]' ROADMAP.md >= 30"
+    },
+    "content_verification": [
+      {
+        "section": "Astro",
+        "pattern": "grep -i 'astro' ROADMAP.md"
+      },
+      {
+        "section": "Cloudflare",
+        "pattern": "grep -i 'cloudflare\\|wrangler' ROADMAP.md"
+      },
+      {
+        "section": "Medusa",
+        "pattern": "grep -i 'medusa' ROADMAP.md"
+      },
+      {
+        "section": "Coolify",
+        "pattern": "grep -i 'coolify' ROADMAP.md"
+      },
+      {
+        "section": "Supabase",
+        "pattern": "grep -i 'supabase' ROADMAP.md"
+      },
+      {
+        "section": "Deno",
+        "pattern": "grep -i 'deno' ROADMAP.md"
+      },
+      {
+        "section": "Contact Form",
+        "pattern": "grep -i 'contact.*form\\|form.*contact' ROADMAP.md"
+      },
+      {
+        "section": "VPS Options",
+        "pattern": "grep -i 'hetzner\\|vps' ROADMAP.md"
+      },
+      {
+        "section": "Vendure Comparison",
+        "pattern": "grep -i 'vendure' ROADMAP.md"
+      }
+    ]
+  },
+  "qa_signoff": {
+    "status": "pending",
+    "issues": [],
+    "tests_passed": []
+  },
+  "total_estimated_minutes": 330,
+  "total_subtasks": 23,
+  "dependencies": {
+    "external": [
+      "Node.js v18+",
+      "Deno",
+      "Docker",
+      "Git"
+    ],
+    "services": [
+      "Cloudflare account",
+      "Supabase account (optional)",
+      "GitHub account"
+    ]
+  },
+  "last_updated": "2025-12-19T16:57:53.109771+00:00"
+}

@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/Users/data/Projects/DanielTarazona/.worktrees/001-create-static-website-roadmap-with-portfolio-store/logs/.83f01506bb4491e243e2ba45298048a3796ca754-audit.json",
+    "files": [
+        {
+            "date": 1766162684862,
+            "name": "/Users/data/Projects/DanielTarazona/.worktrees/001-create-static-website-roadmap-with-portfolio-store/logs/mcp-puppeteer-2025-12-19.log",
+            "hash": "c0501cb0b387212bdebcbe422074fe5aa9268577d15c8dc86fe6707fa5373cde"
+        }
+    ],
+    "hashType": "sha256"
+}

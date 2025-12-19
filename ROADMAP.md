@@ -944,6 +944,426 @@ curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/ssl/certi
 | API | CNAME | api | `<tunnel-id>.cfargotunnel.com` | ✅ Yes | Medusa API (optional) |
 | Admin | CNAME | admin | `<tunnel-id>.cfargotunnel.com` | ✅ Yes | Medusa Admin (optional) |
 
+### Cloudflare Tunnel Setup
+
+Cloudflare Tunnel (formerly Argo Tunnel) provides secure, outbound-only connections from your VPS to Cloudflare's edge network. This eliminates the need to open inbound ports, providing a zero-trust security model for exposing Medusa and Coolify services.
+
+#### Why Cloudflare Tunnel?
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    TRADITIONAL VS CLOUDFLARE TUNNEL                              │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  TRADITIONAL (Open Ports):                                                       │
+│  ┌─────────────┐    Inbound:443    ┌─────────────┐                              │
+│  │   Internet  │ ───────────────▶  │     VPS     │                              │
+│  │  (Attackers)│    Exposed Port   │  (Exposed)  │                              │
+│  └─────────────┘                   └─────────────┘                              │
+│  ⚠️ Risks: DDoS, Port Scanning, Direct Attacks                                  │
+│                                                                                  │
+│  CLOUDFLARE TUNNEL (No Open Ports):                                             │
+│  ┌─────────────┐    Outbound Only  ┌─────────────┐                              │
+│  │  Cloudflare │ ◀───────────────  │     VPS     │                              │
+│  │    Edge     │    Secure Tunnel  │ (Protected) │                              │
+│  └─────────────┘                   └─────────────┘                              │
+│  ✅ Benefits: Hidden IP, DDoS Protection, Zero Trust                            │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+| Feature | Open Ports | Cloudflare Tunnel |
+|---------|------------|-------------------|
+| **Origin IP** | Exposed | Hidden |
+| **Firewall Ports** | 80, 443, 9000 open | All inbound closed |
+| **DDoS Protection** | Limited | Full Cloudflare protection |
+| **SSL/TLS** | Self-managed | Automatic via Cloudflare |
+| **Authentication** | Application-level | Zero Trust Access (optional) |
+| **Setup Complexity** | Low | Medium |
+| **Cost** | Free | Free (unlimited tunnels) |
+
+#### Installing Cloudflared
+
+Cloudflared is the daemon that creates and manages Cloudflare Tunnels. Install it on your VPS:
+
+- [ ] **Task 2.14**: Install cloudflared on VPS
+  ```bash
+  # Debian/Ubuntu - Add Cloudflare GPG key and repository
+  sudo mkdir -p --mode=0755 /usr/share/keyrings
+  curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+
+  echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflared.list
+
+  # Install cloudflared
+  sudo apt update && sudo apt install cloudflared -y
+
+  # Verify installation
+  cloudflared --version
+  # cloudflared version 2024.x.x (built 2024-xx-xx)
+  ```
+
+  Alternative installation methods:
+  ```bash
+  # Direct download (any Linux)
+  curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+  chmod +x cloudflared
+  sudo mv cloudflared /usr/local/bin/
+
+  # ARM64 (Oracle Cloud ARM instance)
+  curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64 -o cloudflared
+  chmod +x cloudflared
+  sudo mv cloudflared /usr/local/bin/
+
+  # Docker (useful for Coolify deployments)
+  docker pull cloudflare/cloudflared:latest
+  ```
+
+#### Authenticating with Cloudflare
+
+- [ ] **Task 2.15**: Authenticate cloudflared with your Cloudflare account
+  ```bash
+  # Authenticate with Cloudflare (opens browser for OAuth)
+  cloudflared tunnel login
+
+  # This creates a certificate at ~/.cloudflared/cert.pem
+  # The certificate authorizes tunnel creation for your account
+
+  # Verify authentication
+  ls -la ~/.cloudflared/
+  # Should show: cert.pem
+  ```
+
+#### Creating a Tunnel
+
+- [ ] **Task 2.16**: Create a named tunnel for the project
+  ```bash
+  # Create a new tunnel with a descriptive name
+  cloudflared tunnel create danieltarazona-tunnel
+
+  # Output will show:
+  # Created tunnel danieltarazona-tunnel with id <TUNNEL_ID>
+  # Credentials written to ~/.cloudflared/<TUNNEL_ID>.json
+
+  # Save the Tunnel ID for DNS configuration
+  export TUNNEL_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+  # List all tunnels
+  cloudflared tunnel list
+
+  # Get tunnel info
+  cloudflared tunnel info danieltarazona-tunnel
+  ```
+
+#### Tunnel Configuration File
+
+Create a configuration file that defines how traffic should be routed to your local services:
+
+- [ ] **Task 2.17**: Create tunnel configuration file
+  ```bash
+  # Create cloudflared config directory
+  sudo mkdir -p /etc/cloudflared
+
+  # Create configuration file
+  sudo nano /etc/cloudflared/config.yml
+  ```
+
+  **Configuration file content (`/etc/cloudflared/config.yml`):**
+  ```yaml
+  # Cloudflare Tunnel Configuration for danieltarazona.com
+  # This file defines how incoming requests are routed to local services
+
+  tunnel: <TUNNEL_ID>
+  credentials-file: /root/.cloudflared/<TUNNEL_ID>.json
+
+  # Ingress rules define how requests are routed
+  # Rules are evaluated in order - first match wins
+  ingress:
+    # Medusa Storefront API (store.danieltarazona.com)
+    - hostname: store.danieltarazona.com
+      service: http://localhost:9000
+      originRequest:
+        noTLSVerify: true
+        connectTimeout: 30s
+
+    # Medusa Admin Dashboard (admin.danieltarazona.com) - Optional
+    - hostname: admin.danieltarazona.com
+      service: http://localhost:9000
+      originRequest:
+        noTLSVerify: true
+
+    # Medusa API endpoint (api.danieltarazona.com) - Optional
+    - hostname: api.danieltarazona.com
+      service: http://localhost:9000
+      originRequest:
+        noTLSVerify: true
+        httpHostHeader: "api.danieltarazona.com"
+
+    # Coolify Dashboard (coolify.danieltarazona.com) - Optional
+    - hostname: coolify.danieltarazona.com
+      service: http://localhost:8000
+      originRequest:
+        noTLSVerify: true
+
+    # Catch-all rule (required) - Returns 404 for unmatched requests
+    - service: http_status:404
+  ```
+
+  **Ingress Configuration Options:**
+
+  | Option | Description | Example |
+  |--------|-------------|---------|
+  | `hostname` | The public hostname for this route | `store.danieltarazona.com` |
+  | `service` | Local service URL to forward to | `http://localhost:9000` |
+  | `noTLSVerify` | Skip TLS verification for local service | `true` (for self-signed certs) |
+  | `connectTimeout` | Timeout for establishing connection | `30s` |
+  | `httpHostHeader` | Override Host header sent to origin | `api.danieltarazona.com` |
+
+#### DNS Route Configuration
+
+After creating the tunnel, configure DNS records to point to it:
+
+- [ ] **Task 2.18**: Configure DNS routes for the tunnel
+  ```bash
+  # Route store subdomain through the tunnel
+  cloudflared tunnel route dns danieltarazona-tunnel store.danieltarazona.com
+
+  # Route admin subdomain through the tunnel (optional)
+  cloudflared tunnel route dns danieltarazona-tunnel admin.danieltarazona.com
+
+  # Route API subdomain through the tunnel (optional)
+  cloudflared tunnel route dns danieltarazona-tunnel api.danieltarazona.com
+
+  # Route Coolify dashboard (optional, for remote management)
+  cloudflared tunnel route dns danieltarazona-tunnel coolify.danieltarazona.com
+
+  # Verify DNS records were created
+  cloudflared tunnel route list
+
+  # Alternative: Create CNAME manually via Cloudflare API
+  curl -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data '{
+      "type": "CNAME",
+      "name": "store",
+      "content": "'$TUNNEL_ID'.cfargotunnel.com",
+      "ttl": 1,
+      "proxied": true
+    }'
+  ```
+
+#### Running the Tunnel
+
+- [ ] **Task 2.19**: Test tunnel connectivity
+  ```bash
+  # Run tunnel in foreground (for testing)
+  cloudflared tunnel run danieltarazona-tunnel
+
+  # Test from another terminal or browser
+  curl -I https://store.danieltarazona.com
+  # Should return HTTP 200 or Medusa response
+
+  # Run with debug logging
+  cloudflared tunnel --loglevel debug run danieltarazona-tunnel
+  ```
+
+#### Installing as a System Service
+
+For production, run cloudflared as a systemd service:
+
+- [ ] **Task 2.20**: Configure cloudflared as a systemd service
+  ```bash
+  # Install the service (copies config to /etc/cloudflared/)
+  sudo cloudflared service install
+
+  # Or manually create the service file
+  sudo nano /etc/systemd/system/cloudflared.service
+  ```
+
+  **Systemd service file (`/etc/systemd/system/cloudflared.service`):**
+  ```ini
+  [Unit]
+  Description=Cloudflare Tunnel for danieltarazona.com
+  After=network-online.target
+  Wants=network-online.target
+
+  [Service]
+  Type=simple
+  User=root
+  ExecStart=/usr/local/bin/cloudflared tunnel --config /etc/cloudflared/config.yml run
+  Restart=always
+  RestartSec=5
+  TimeoutStartSec=0
+
+  # Logging
+  StandardOutput=journal
+  StandardError=journal
+  SyslogIdentifier=cloudflared
+
+  # Security hardening
+  NoNewPrivileges=yes
+  ProtectSystem=full
+  ProtectHome=read-only
+
+  [Install]
+  WantedBy=multi-user.target
+  ```
+
+  ```bash
+  # Enable and start the service
+  sudo systemctl daemon-reload
+  sudo systemctl enable cloudflared
+  sudo systemctl start cloudflared
+
+  # Check status
+  sudo systemctl status cloudflared
+
+  # View logs
+  sudo journalctl -u cloudflared -f
+  ```
+
+#### Cloudflare Zero Trust Access (Optional)
+
+For additional security on admin endpoints, configure Cloudflare Access:
+
+- [ ] **Task 2.21**: Configure Zero Trust Access policies (optional)
+  ```bash
+  # Access policies are configured via Cloudflare Dashboard or API
+  # Dashboard: Zero Trust → Access → Applications → Add an Application
+
+  # Example: Protect admin.danieltarazona.com
+  # 1. Create an Access Application for admin.danieltarazona.com
+  # 2. Add authentication method (email OTP, Google, GitHub, etc.)
+  # 3. Create access policy (e.g., only allow specific emails)
+
+  # CLI approach using Cloudflare API
+  curl -X POST "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/access/apps" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data '{
+      "name": "Medusa Admin",
+      "domain": "admin.danieltarazona.com",
+      "type": "self_hosted",
+      "session_duration": "24h",
+      "auto_redirect_to_identity": true
+    }'
+  ```
+
+#### Tunnel Health Monitoring
+
+- [ ] **Task 2.22**: Set up tunnel monitoring and alerts
+  ```bash
+  # Check tunnel health via API
+  curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/cfd_tunnel/$TUNNEL_ID" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq '.result.status'
+
+  # Monitor tunnel connections
+  cloudflared tunnel info danieltarazona-tunnel
+
+  # View active connections
+  cloudflared tunnel list --show-recently-disconnected
+  ```
+
+  **Health Check Script (`/usr/local/bin/check-tunnel.sh`):**
+  ```bash
+  #!/bin/bash
+  # Tunnel health check script
+
+  TUNNEL_NAME="danieltarazona-tunnel"
+  HEALTH_URL="https://store.danieltarazona.com/health"
+
+  # Check if cloudflared is running
+  if ! systemctl is-active --quiet cloudflared; then
+    echo "ALERT: cloudflared service is not running"
+    systemctl restart cloudflared
+    exit 1
+  fi
+
+  # Check if endpoints are accessible
+  HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $HEALTH_URL)
+  if [ "$HTTP_STATUS" != "200" ]; then
+    echo "ALERT: Tunnel endpoint returned HTTP $HTTP_STATUS"
+    exit 1
+  fi
+
+  echo "OK: Tunnel is healthy"
+  exit 0
+  ```
+
+#### Tunnel Architecture Summary
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    CLOUDFLARE TUNNEL ARCHITECTURE                                │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  INTERNET                                                                        │
+│      │                                                                           │
+│      │  HTTPS (443)                                                              │
+│      ▼                                                                           │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │
+│  │                        CLOUDFLARE EDGE                                     │  │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐│  │
+│  │  │ DDoS Protection │  │   WAF Rules     │  │   Zero Trust Access        ││  │
+│  │  └─────────────────┘  └─────────────────┘  └─────────────────────────────┘│  │
+│  │                              │                                             │  │
+│  │                              ▼                                             │  │
+│  │  ┌─────────────────────────────────────────────────────────────────────┐  │  │
+│  │  │              Cloudflare Tunnel Routing                              │  │  │
+│  │  │  store.danieltarazona.com  ───▶  danieltarazona-tunnel             │  │  │
+│  │  │  admin.danieltarazona.com  ───▶  danieltarazona-tunnel             │  │  │
+│  │  │  api.danieltarazona.com    ───▶  danieltarazona-tunnel             │  │  │
+│  │  └─────────────────────────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────────────────────┘  │
+│                              │                                                   │
+│                              │  Secure Tunnel (Outbound from VPS)               │
+│                              │  QUIC/HTTP2 multiplexed connection               │
+│                              ▼                                                   │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │
+│  │                             VPS (COOLIFY)                                  │  │
+│  │                                                                            │  │
+│  │   ┌─────────────────────────────────────────────────────────────────┐     │  │
+│  │   │                      cloudflared daemon                          │     │  │
+│  │   │   Config: /etc/cloudflared/config.yml                           │     │  │
+│  │   │   Creds:  /root/.cloudflared/<tunnel-id>.json                   │     │  │
+│  │   └───────────────────────────┬─────────────────────────────────────┘     │  │
+│  │                               │                                            │  │
+│  │          ┌────────────────────┼────────────────────┐                      │  │
+│  │          │                    │                    │                      │  │
+│  │          ▼                    ▼                    ▼                      │  │
+│  │   ┌─────────────┐     ┌─────────────┐     ┌─────────────┐                │  │
+│  │   │ Medusa API  │     │ Medusa Admin│     │  Coolify    │                │  │
+│  │   │ :9000       │     │ :9000/admin │     │  :8000      │                │  │
+│  │   └─────────────┘     └─────────────┘     └─────────────┘                │  │
+│  │          │                    │                                           │  │
+│  │          └────────────────────┘                                           │  │
+│  │                    │                                                      │  │
+│  │                    ▼                                                      │  │
+│  │            ┌─────────────┐                                               │  │
+│  │            │ PostgreSQL  │                                               │  │
+│  │            │ :5432       │                                               │  │
+│  │            └─────────────┘                                               │  │
+│  │                                                                          │  │
+│  │   FIREWALL: All inbound ports CLOSED (except SSH 22 for management)     │  │
+│  └───────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Tunnel Tasks Summary
+
+| Task | Description | Status |
+|------|-------------|--------|
+| 2.14 | Install cloudflared on VPS | [ ] |
+| 2.15 | Authenticate with Cloudflare account | [ ] |
+| 2.16 | Create named tunnel | [ ] |
+| 2.17 | Create tunnel configuration file | [ ] |
+| 2.18 | Configure DNS routes for tunnel | [ ] |
+| 2.19 | Test tunnel connectivity | [ ] |
+| 2.20 | Install as systemd service | [ ] |
+| 2.21 | Configure Zero Trust Access (optional) | [ ] |
+| 2.22 | Set up tunnel monitoring | [ ] |
+
 ---
 
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*

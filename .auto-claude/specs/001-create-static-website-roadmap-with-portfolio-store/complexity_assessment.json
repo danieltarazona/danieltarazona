@@ -1,0 +1,82 @@
+{
+  "complexity": "standard",
+  "workflow_type": "feature",
+  "confidence": 0.85,
+  "reasoning": "This is a documentation task (creating ROADMAP.md) that requires research into multiple technologies (Astro, Cloudflare, Medusa 2.0, Coolify, Supabase, Nhost, Deno). While the technologies are complex, the deliverable is a planning document with scripts, not a full implementation. Research is needed for CLI tools and integration patterns.",
+
+  "analysis": {
+    "scope": {
+      "estimated_files": 5,
+      "estimated_services": 1,
+      "is_cross_cutting": false,
+      "notes": "Primary output is ROADMAP.md file, possibly with supporting script files. No actual service implementation - just planning documents."
+    },
+    "integrations": {
+      "external_services": ["Cloudflare", "Medusa 2.0", "Coolify", "Supabase", "Nhost", "Deno", "Astro"],
+      "new_dependencies": [],
+      "research_needed": true,
+      "notes": "Need to research CLI tools, setup scripts, and integration patterns for each service to provide accurate documentation. No actual integration - just documenting the process."
+    },
+    "infrastructure": {
+      "docker_changes": false,
+      "database_changes": false,
+      "config_changes": false,
+      "notes": "The ROADMAP will DESCRIBE infrastructure setup (Docker, Postgres, VPS), but we are not implementing it. We are creating planning documentation."
+    },
+    "knowledge": {
+      "patterns_exist": false,
+      "research_required": true,
+      "unfamiliar_tech": ["Medusa 2.0", "Coolify", "Cloudflare Tunnel", "Nhost"],
+      "notes": "Need to research current CLI commands, setup procedures, and best practices for Medusa 2.0, Coolify, and Cloudflare toolchain to create accurate roadmap."
+    },
+    "risk": {
+      "level": "low",
+      "concerns": ["Outdated CLI commands", "Missing integration steps", "Incorrect setup procedures"],
+      "notes": "Risk is low since this is a planning document. Inaccuracies can be corrected during actual implementation."
+    }
+  },
+
+  "recommended_phases": [
+    "discovery",
+    "requirements",
+    "research",
+    "context",
+    "spec_writing",
+    "planning",
+    "validation"
+  ],
+
+  "flags": {
+    "needs_research": true,
+    "needs_self_critique": false,
+    "needs_infrastructure_setup": false
+  },
+
+  "validation_recommendations": {
+    "risk_level": "low",
+    "skip_validation": false,
+    "minimal_mode": true,
+    "test_types_required": [],
+    "security_scan_required": false,
+    "staging_deployment_required": false,
+    "reasoning": "This is a documentation deliverable (ROADMAP.md). No code execution, no security implications. Validation should focus on completeness and accuracy of the roadmap content, not automated testing."
+  },
+
+  "additional_notes": {
+    "deliverable_type": "documentation",
+    "primary_output": "ROADMAP.md",
+    "secondary_outputs": ["Setup scripts (bash)", "Feature list", "Architecture comparison (Vendure vs Medusa)"],
+    "research_topics": [
+      "Medusa 2.0 CLI and setup procedures",
+      "Coolify orchestration and CLI",
+      "Cloudflare Tunnel configuration",
+      "Supabase PostgreSQL setup (free tier)",
+      "Nhost setup and integration",
+      "Astro static site generation",
+      "Deno runtime for scripts",
+      "VPS options (Hetzner vs free alternatives)"
+    ]
+  },
+
+  "created_at": "2025-12-19T00:30:00.000Z"
+}

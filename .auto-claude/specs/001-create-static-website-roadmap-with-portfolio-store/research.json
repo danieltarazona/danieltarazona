@@ -1,0 +1,669 @@
+{
+  "integrations_researched": [
+    {
+      "name": "Astro",
+      "type": "framework",
+      "verified_package": {
+        "name": "astro",
+        "install_command": "npm create astro@latest",
+        "version": "latest (4.x+)",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [
+          "import { defineConfig } from 'astro/config'",
+          "import cloudflare from '@astrojs/cloudflare'"
+        ],
+        "initialization": "npm create astro@latest my-project",
+        "key_functions": [
+          "defineConfig()",
+          "astro build",
+          "astro dev",
+          "astro add [integration]"
+        ],
+        "verified_against": "Context7 MCP: /withastro/docs"
+      },
+      "configuration": {
+        "env_vars": [],
+        "config_files": ["astro.config.mjs", "tsconfig.json"],
+        "dependencies": ["@astrojs/cloudflare (for Cloudflare deployment)"]
+      },
+      "infrastructure": {
+        "requires_docker": false,
+        "notes": "Static site generator, deploys to Cloudflare Pages/Workers"
+      },
+      "cli_tools": {
+        "primary": "astro",
+        "commands": [
+          "npx astro add cloudflare",
+          "npx astro build",
+          "npx astro dev",
+          "npx astro preview"
+        ]
+      },
+      "gotchas": [
+        "For SSR with Cloudflare, need @astrojs/cloudflare adapter",
+        "wrangler.jsonc required for Cloudflare Workers deployment",
+        "Use 'npx astro add cloudflare' for automatic configuration"
+      ],
+      "research_sources": [
+        "Context7 MCP: /withastro/docs",
+        "https://docs.astro.build",
+        "https://github.com/withastro/astro"
+      ]
+    },
+    {
+      "name": "Medusa 2.0",
+      "type": "ecommerce-platform",
+      "verified_package": {
+        "name": "@medusajs/medusa",
+        "install_command": "npx create-medusa-app@latest",
+        "version": "2.0+",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [
+          "import { defineConfig, loadEnv } from '@medusajs/framework/utils'",
+          "import { MedusaModule } from '@medusajs/medusa'"
+        ],
+        "initialization": "npx create-medusa-app@latest my-store",
+        "key_functions": [
+          "defineConfig()",
+          "medusa db:migrate",
+          "medusa db:generate",
+          "medusa develop",
+          "medusa build"
+        ],
+        "verified_against": "Context7 MCP: /medusajs/medusa"
+      },
+      "configuration": {
+        "env_vars": [
+          "DATABASE_URL=postgres://[user]:[password]@[host]:[port]/[dbname]",
+          "DB_NAME",
+          "MEDUSA_ADMIN_ONBOARDING_TYPE",
+          "STORE_CORS",
+          "ADMIN_CORS"
+        ],
+        "config_files": ["medusa-config.ts", ".env"],
+        "dependencies": ["PostgreSQL 14+", "Node.js 20+", "Redis (optional)"]
+      },
+      "infrastructure": {
+        "requires_docker": true,
+        "docker_image": "postgres:14",
+        "ports": [9000, 7001],
+        "volumes": ["/data"]
+      },
+      "cli_tools": {
+        "primary": "medusa",
+        "commands": [
+          "npx medusa db:setup --db <name>",
+          "npx medusa db:migrate",
+          "npx medusa db:generate <module>",
+          "npx medusa develop",
+          "npx medusa build",
+          "npx medusa plugin:publish",
+          "npx medusa plugin:develop"
+        ]
+      },
+      "gotchas": [
+        "Requires PostgreSQL - Supabase free tier compatible",
+        "Medusa 2.0 has different architecture from v1",
+        "For production: cd .medusa/server && npm install && npm run predeploy && npm run start",
+        "SSL configuration needed for remote PostgreSQL: databaseDriverOptions.ssl",
+        "Next.js storefront installed separately"
+      ],
+      "multi_site_capability": {
+        "supported": false,
+        "notes": "Medusa is designed for single-store. For multi-site (Adam Robotics, Adam Automotive, Adam Defense), would need separate Medusa instances or consider Vendure's Channel feature"
+      },
+      "research_sources": [
+        "Context7 MCP: /medusajs/medusa",
+        "Context7 MCP: /websites/medusajs_resources",
+        "https://docs.medusajs.com",
+        "https://github.com/medusajs/medusa"
+      ]
+    },
+    {
+      "name": "Vendure",
+      "type": "ecommerce-platform",
+      "verified_package": {
+        "name": "@vendure/core",
+        "install_command": "npx @vendure/create my-shop",
+        "version": "latest",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [
+          "import { VendureConfig } from '@vendure/core'",
+          "import { DashboardPlugin } from '@vendure/dashboard/plugin'"
+        ],
+        "initialization": "npx @vendure/create my-shop",
+        "key_functions": [
+          "npm run dev",
+          "npx vite (for dashboard)"
+        ],
+        "verified_against": "Context7 MCP: /vendure-ecommerce/vendure"
+      },
+      "configuration": {
+        "env_vars": ["DB=postgres"],
+        "config_files": ["vendure-config.ts"],
+        "dependencies": ["PostgreSQL", "Node.js"]
+      },
+      "infrastructure": {
+        "requires_docker": true,
+        "notes": "Similar to Medusa, requires PostgreSQL"
+      },
+      "cli_tools": {
+        "primary": "vendure",
+        "commands": [
+          "npx @vendure/create my-shop",
+          "npm run dev"
+        ]
+      },
+      "multi_site_capability": {
+        "supported": true,
+        "feature": "Channels",
+        "notes": "Vendure has built-in Channel support for multi-tenant/multi-site scenarios. Perfect for Adam Robotics, Adam Automotive, Adam Defense use case. Each Channel can have separate products, customers, roles, stock locations, and facets."
+      },
+      "gotchas": [
+        "GraphQL-based API (different from Medusa's REST)",
+        "Channel-aware entities require ChannelService.assignToCurrentChannel()",
+        "Migration needed for channel associations"
+      ],
+      "research_sources": [
+        "Context7 MCP: /vendure-ecommerce/vendure",
+        "https://docs.vendure.io",
+        "https://github.com/vendure-ecommerce/vendure"
+      ]
+    },
+    {
+      "name": "Cloudflare (DNS, Workers, Tunnel, CLI)",
+      "type": "infrastructure-service",
+      "verified_package": {
+        "name": "wrangler",
+        "install_command": "npm install wrangler@latest --save-dev",
+        "version": "latest (v3+)",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [],
+        "initialization": "npm create cloudflare@latest",
+        "key_functions": [
+          "wrangler dev",
+          "wrangler deploy",
+          "wrangler pages deploy",
+          "cloudflared tunnel login",
+          "cloudflared tunnel create",
+          "cloudflared tunnel route dns"
+        ],
+        "verified_against": "Context7 MCP: /websites/developers_cloudflare_workers"
+      },
+      "configuration": {
+        "env_vars": [
+          "CLOUDFLARE_API_TOKEN",
+          "CLOUDFLARE_ACCOUNT_ID",
+          "CLOUDFLARE_ZONE_ID"
+        ],
+        "config_files": ["wrangler.jsonc", "wrangler.toml", "~/.cloudflared/config.yml"],
+        "dependencies": []
+      },
+      "infrastructure": {
+        "requires_docker": false,
+        "notes": "Cloudflare edge platform"
+      },
+      "cli_tools": {
+        "wrangler": {
+          "install": "npm install wrangler@latest --save-dev",
+          "commands": [
+            "wrangler init -y",
+            "wrangler dev",
+            "wrangler deploy",
+            "wrangler pages deploy ./dist",
+            "wrangler r2 bucket create <bucket-name>",
+            "wrangler kv namespace create <name>",
+            "npx wrangler hyperdrive create <name> --connection-string='postgres://...'",
+            "wrangler secret put <name>"
+          ]
+        },
+        "cloudflared": {
+          "install": "brew install cloudflared (macOS) or download from GitHub releases",
+          "commands": [
+            "cloudflared tunnel login",
+            "cloudflared tunnel create <name>",
+            "cloudflared tunnel route dns <tunnel-id> <hostname>",
+            "cloudflared tunnel run <name>",
+            "cloudflared tunnel list",
+            "cloudflared tunnel info <name>",
+            "cloudflared tunnel cleanup <name>",
+            "cloudflared tunnel delete <name>",
+            "cloudflared tunnel ingress validate"
+          ]
+        }
+      },
+      "tunnel_config_example": {
+        "config_file": "~/.cloudflared/config.yml",
+        "content": {
+          "tunnel": "<tunnel-id>",
+          "credentials-file": "~/.cloudflared/<tunnel-id>.json",
+          "ingress": [
+            {"hostname": "app.example.com", "service": "http://localhost:8080"},
+            {"hostname": "api.example.com", "service": "http://localhost:8000"},
+            {"service": "http_status:404"}
+          ]
+        }
+      },
+      "gotchas": [
+        "Tunnel credentials stored in ~/.cloudflared/<tunnel-id>.json",
+        "DNS CNAME record format: <tunnel-id>.cfargotunnel.com",
+        "Use --overwrite-dns flag to update existing DNS records",
+        "wrangler.jsonc needed for Workers/Pages deployment",
+        "For Astro SSR: need nodejs_compat compatibility flag"
+      ],
+      "research_sources": [
+        "Context7 MCP: /websites/developers_cloudflare_workers",
+        "Context7 MCP: /cloudflare/cloudflared",
+        "Context7 MCP: /websites/developers_cloudflare",
+        "https://developers.cloudflare.com"
+      ]
+    },
+    {
+      "name": "Supabase",
+      "type": "backend-service",
+      "verified_package": {
+        "name": "@supabase/supabase-js",
+        "install_command": "npm install @supabase/supabase-js",
+        "version": "latest",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [
+          "import { createClient } from '@supabase/supabase-js'"
+        ],
+        "initialization": "const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)",
+        "key_functions": [
+          "supabase.from('table').select()",
+          "supabase.from('table').insert()",
+          "supabase.auth.signUp()",
+          "supabase.auth.signInWithPassword()"
+        ],
+        "verified_against": "Context7 MCP: /supabase/supabase"
+      },
+      "configuration": {
+        "env_vars": [
+          "SUPABASE_URL",
+          "SUPABASE_ANON_KEY",
+          "SUPABASE_SERVICE_ROLE_KEY",
+          "DATABASE_URL"
+        ],
+        "config_files": ["supabase/config.toml"],
+        "dependencies": []
+      },
+      "infrastructure": {
+        "requires_docker": true,
+        "docker_note": "For local development only",
+        "ports": [54322, 54323, 54324]
+      },
+      "cli_tools": {
+        "primary": "supabase",
+        "install": "npm install supabase --save-dev OR brew install supabase/tap/supabase",
+        "commands": [
+          "supabase login",
+          "supabase init",
+          "supabase start",
+          "supabase stop",
+          "supabase db migrate",
+          "supabase db push",
+          "supabase db push --dry-run",
+          "supabase functions serve",
+          "supabase functions deploy <name>",
+          "supabase projects list",
+          "supabase projects create <name> --org-id <org> --db-password <pass> --region <region>",
+          "supabase secrets set KEY=value --project-ref <ref>",
+          "supabase secrets list --project-ref <ref>",
+          "supabase migration list --linked",
+          "supabase inspect db table-stats --linked"
+        ]
+      },
+      "connection_strings": {
+        "local": "postgresql://postgres:postgres@localhost:54322/postgres",
+        "remote_direct": "postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres",
+        "remote_pooler": "postgres://postgres.[PROJECT-REF]:[PASSWORD]@[REGION].pooler.supabase.com:6543/postgres"
+      },
+      "free_tier": {
+        "available": true,
+        "limits": {
+          "database": "500MB",
+          "storage": "1GB",
+          "bandwidth": "2GB",
+          "edge_functions": "500K invocations/month"
+        }
+      },
+      "gotchas": [
+        "Free tier has 500MB database limit - sufficient for <100 products",
+        "Use pooler connection string for serverless/edge functions",
+        "Transaction mode (port 6543) doesn't support prepared statements",
+        "Local dev requires Docker",
+        "psql connection: psql 'postgresql://postgres:postgres@localhost:54322/postgres'"
+      ],
+      "research_sources": [
+        "Context7 MCP: /supabase/supabase",
+        "Context7 MCP: /supabase/cli",
+        "https://supabase.com/docs",
+        "https://github.com/supabase/supabase"
+      ]
+    },
+    {
+      "name": "Deno",
+      "type": "runtime",
+      "verified_package": {
+        "name": "deno",
+        "install_command": "curl -fsSL https://deno.land/install.sh | sh",
+        "version": "latest (2.x)",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [],
+        "initialization": "deno run main.ts",
+        "key_functions": [
+          "deno run",
+          "deno install",
+          "deno task",
+          "deno compile"
+        ],
+        "verified_against": "Context7 MCP: /websites/deno"
+      },
+      "configuration": {
+        "env_vars": [],
+        "config_files": ["deno.json", "deno.lock"],
+        "dependencies": []
+      },
+      "infrastructure": {
+        "requires_docker": false
+      },
+      "cli_tools": {
+        "primary": "deno",
+        "commands": [
+          "deno --version",
+          "deno run main.ts",
+          "deno install -gArf jsr:@deno/deployctl",
+          "deno task dev",
+          "deno compile --output app main.ts",
+          "deno install --entrypoint entry1.ts"
+        ]
+      },
+      "deploy_cli": {
+        "name": "deployctl",
+        "install": "deno install -gArf jsr:@deno/deployctl",
+        "commands": [
+          "deployctl deploy --project=<project-name> main.ts"
+        ]
+      },
+      "astro_integration": {
+        "package": "@deno/astro-adapter",
+        "install": "npm install @deno/astro-adapter"
+      },
+      "gotchas": [
+        "Deno 2.x has improved Node.js compatibility",
+        "Use jsr: imports for Deno-native packages",
+        "For Astro: use @deno/astro-adapter for Deno Deploy"
+      ],
+      "research_sources": [
+        "Context7 MCP: /websites/deno",
+        "Context7 MCP: /denoland/deno",
+        "https://docs.deno.com",
+        "https://deno.land"
+      ]
+    },
+    {
+      "name": "Coolify",
+      "type": "self-hosting-platform",
+      "verified_package": {
+        "name": "coolify",
+        "install_command": "curl -fsSL https://cdn.coollabs.io/coolify/install.sh | sudo bash",
+        "version": "v4.x",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [],
+        "initialization": "curl -fsSL https://cdn.coollabs.io/coolify/install.sh | sudo bash",
+        "key_functions": [],
+        "verified_against": "Context7 MCP: /coollabsio/coolify-docs"
+      },
+      "configuration": {
+        "env_vars": [],
+        "config_files": ["/data/coolify/source/.env", "/data/coolify/source/docker-compose.yml"],
+        "dependencies": ["Docker", "Docker Compose"]
+      },
+      "infrastructure": {
+        "requires_docker": true,
+        "requires_vps": true,
+        "minimum_ram": "2GB",
+        "minimum_storage": "30GB"
+      },
+      "cli_tools": {
+        "primary": "coolify (Go CLI)",
+        "install": "go install github.com/coollabsio/coolify-cli@latest",
+        "commands": [
+          "coolify context list",
+          "coolify server list",
+          "coolify deploy name <app-name>",
+          "coolify deploy batch api,worker,frontend",
+          "coolify deploy uuid <uuid>",
+          "coolify deploy list",
+          "coolify deploy get <deployment-uuid>",
+          "coolify deploy cancel <deployment-uuid>",
+          "coolify database list",
+          "coolify database create postgresql --server-uuid <uuid> --project-uuid <uuid> --name mydb",
+          "coolify database start <uuid>",
+          "coolify database stop <uuid>",
+          "coolify database backup list <database-uuid>",
+          "coolify database backup create <database-uuid> --frequency '0 2 * * *'"
+        ]
+      },
+      "docker_compose_start": "docker compose --env-file /data/coolify/source/.env -f /data/coolify/source/docker-compose.yml -f /data/coolify/source/docker-compose.prod.yml up -d --pull always --remove-orphans --force-recreate",
+      "gotchas": [
+        "Requires root access for installation",
+        "Needs SSH access to managed servers",
+        "Self-hosted Heroku/Netlify/Vercel alternative",
+        "Can deploy Docker containers, databases, and applications",
+        "Perfect for VPS like Hetzner"
+      ],
+      "research_sources": [
+        "Context7 MCP: /coollabsio/coolify-docs",
+        "Context7 MCP: /coollabsio/coolify-cli",
+        "https://coolify.io/docs",
+        "https://github.com/coollabsio/coolify"
+      ]
+    },
+    {
+      "name": "Nhost",
+      "type": "backend-service",
+      "verified_package": {
+        "name": "@nhost/nextjs",
+        "install_command": "npm install @nhost/nextjs",
+        "version": "latest",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [
+          "import { NhostClient } from '@nhost/nextjs'"
+        ],
+        "initialization": "const nhost = new NhostClient({ subdomain: '', region: '' })",
+        "key_functions": [],
+        "verified_against": "Context7 MCP: /nhost/nhost"
+      },
+      "configuration": {
+        "env_vars": [
+          "NHOST_SUBDOMAIN",
+          "NHOST_REGION"
+        ],
+        "config_files": ["nhost/config.yaml"],
+        "dependencies": []
+      },
+      "infrastructure": {
+        "requires_docker": true,
+        "docker_note": "For local development"
+      },
+      "cli_tools": {
+        "primary": "nhost",
+        "install": "sudo curl -L https://raw.githubusercontent.com/nhost/cli/main/get.sh | bash",
+        "commands": [
+          "nhost version",
+          "nhost up",
+          "nhost up cloud --subdomain <subdomain> --postgres-url <url>",
+          "nhost docker-credentials configure",
+          "nhost run --run-service path/to/run-service.toml"
+        ]
+      },
+      "features": {
+        "database": "PostgreSQL (Hasura)",
+        "auth": "Built-in authentication",
+        "storage": "S3-compatible storage",
+        "graphql": "Hasura GraphQL engine",
+        "functions": "Serverless functions"
+      },
+      "gotchas": [
+        "Similar to Supabase but uses Hasura for GraphQL",
+        "Free tier available with limitations",
+        "Local dev requires Docker",
+        "Uses Hasura Storage for file management"
+      ],
+      "research_sources": [
+        "Context7 MCP: /nhost/nhost",
+        "Context7 MCP: /websites/nhost_io",
+        "https://docs.nhost.io",
+        "https://github.com/nhost/nhost"
+      ]
+    },
+    {
+      "name": "Hetzner VPS",
+      "type": "infrastructure",
+      "verified_package": {
+        "name": "hcloud",
+        "install_command": "brew install hcloud (macOS) OR apt install hcloud-cli (Debian/Ubuntu)",
+        "version": "latest",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [],
+        "initialization": "hcloud context create <context-name>",
+        "key_functions": [],
+        "verified_against": "Hetzner documentation (not in Context7)"
+      },
+      "configuration": {
+        "env_vars": ["HCLOUD_TOKEN"],
+        "config_files": ["~/.config/hcloud/cli.toml"],
+        "dependencies": []
+      },
+      "infrastructure": {
+        "requires_docker": false,
+        "notes": "Cloud VPS provider, very cost-effective"
+      },
+      "cli_tools": {
+        "primary": "hcloud",
+        "commands": [
+          "hcloud context create <name>",
+          "hcloud server create --name <name> --type cx22 --image ubuntu-22.04 --ssh-key <key>",
+          "hcloud server list",
+          "hcloud server ssh <name>",
+          "hcloud server delete <name>",
+          "hcloud ssh-key create --name <name> --public-key-from-file ~/.ssh/id_rsa.pub"
+        ]
+      },
+      "pricing": {
+        "cx22": "~4 EUR/month (2 vCPU, 4GB RAM, 40GB SSD)",
+        "cx32": "~8 EUR/month (4 vCPU, 8GB RAM, 80GB SSD)",
+        "notes": "Excellent value for self-hosting Coolify + Medusa"
+      },
+      "gotchas": [
+        "European data centers (Germany, Finland) by default",
+        "US data centers available (Ashburn, Hillsboro)",
+        "Excellent for Coolify self-hosting",
+        "CLI requires API token from Hetzner Cloud Console"
+      ],
+      "research_sources": [
+        "https://docs.hetzner.com/cloud/",
+        "https://github.com/hetznercloud/cli"
+      ]
+    }
+  ],
+  "unverified_claims": [
+    {
+      "claim": "Hetzner CLI exact commands",
+      "reason": "Not available in Context7, based on general Hetzner documentation knowledge",
+      "risk_level": "low"
+    }
+  ],
+  "recommendations": [
+    {
+      "topic": "E-commerce Platform Choice",
+      "recommendation": "For single store (danieltarazona.com): Use Medusa 2.0. For multi-site scenario (Adam Robotics/Automotive/Defense): Use Vendure with Channels feature for true multi-tenant support from single deployment."
+    },
+    {
+      "topic": "Database",
+      "recommendation": "Use Supabase free tier for PostgreSQL. Free tier (500MB) is sufficient for <100 products. Connection string for Medusa: use pooler URL for serverless compatibility."
+    },
+    {
+      "topic": "Hosting Strategy",
+      "recommendation": "Option 1 (Free): Astro on Cloudflare Pages + Supabase free tier. Option 2 (VPS): Hetzner CX22 (~4 EUR/month) with Coolify for self-hosting Medusa + PostgreSQL."
+    },
+    {
+      "topic": "Cloudflare Integration",
+      "recommendation": "Use Cloudflare Tunnel (cloudflared) to expose Coolify/Medusa from VPS without public IP. Wrangler for Workers/Pages deployments."
+    },
+    {
+      "topic": "Contact Form",
+      "recommendation": "Create Astro API endpoint or Cloudflare Worker that inserts form data into Supabase PostgreSQL table."
+    },
+    {
+      "topic": "CLI Tools Summary",
+      "recommendation": "Install these CLIs: astro, wrangler, cloudflared, supabase, medusa, coolify, hcloud (if using Hetzner), nhost (if using Nhost)"
+    }
+  ],
+  "architecture_options": {
+    "free_tier": {
+      "frontend": "Astro on Cloudflare Pages",
+      "store": "Medusa on Railway/Render free tier OR Nhost",
+      "database": "Supabase PostgreSQL (free)",
+      "dns": "Cloudflare DNS (free)",
+      "cost": "$0/month"
+    },
+    "vps_self_hosted": {
+      "frontend": "Astro on Coolify",
+      "store": "Medusa on Coolify",
+      "database": "PostgreSQL on Coolify (same VPS)",
+      "dns": "Cloudflare DNS + Tunnel",
+      "vps": "Hetzner CX22 or CX32",
+      "cost": "~4-8 EUR/month"
+    }
+  },
+  "contact_form_implementation": {
+    "approach": "Astro API route or Cloudflare Worker",
+    "storage": "Supabase PostgreSQL",
+    "table_schema": {
+      "name": "contact_submissions",
+      "columns": ["id (uuid)", "name (text)", "email (text)", "message (text)", "created_at (timestamp)"]
+    },
+    "code_example": {
+      "language": "typescript",
+      "framework": "Astro API endpoint",
+      "notes": "Use @supabase/supabase-js to insert into Supabase"
+    }
+  },
+  "context7_libraries_used": [
+    "/withastro/docs",
+    "/medusajs/medusa",
+    "/websites/medusajs_resources",
+    "/vendure-ecommerce/vendure",
+    "/websites/developers_cloudflare_workers",
+    "/websites/developers_cloudflare",
+    "/cloudflare/cloudflared",
+    "/supabase/supabase",
+    "/supabase/cli",
+    "/websites/deno",
+    "/coollabsio/coolify-docs",
+    "/coollabsio/coolify-cli",
+    "/nhost/nhost"
+  ],
+  "created_at": "2025-01-19T12:00:00Z"
+}
