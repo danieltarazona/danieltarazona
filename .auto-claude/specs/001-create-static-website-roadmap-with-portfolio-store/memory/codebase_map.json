@@ -1,10 +1,10 @@
 {
   "discovered_files": {
     "ROADMAP.md": {
-      "description": "Vendure vs Medusa 2.0 comparison section added at end of document (lines 3401-3720). Comprehensive analysis for multi-brand/multi-domain scenarios comparing native multi-channel support, REST vs GraphQL APIs, architecture diagrams, infrastructure costs, and clear recommendations: Vendure for Adam multi-brand expansion (native channels, unified admin, lower cost), Medusa for single-store danieltarazona.com (simpler setup, REST familiarity).",
+      "description": "Added Appendix D: Edge Cases, Service Limits, and Mitigation Strategies (lines 16568-17537). Documents 5 major edge cases: (1) Supabase 500MB limit with monitoring scripts, archival strategies, and SQL queries; (2) Cloudflare rate limits including Workers 100K/day, Pages 500 builds/month, 10ms CPU time with caching and optimization strategies; (3) VPS resource constraints with Docker Compose resource limits, PostgreSQL tuning, swap space, connection pooling; (4) Network/connectivity issues with tunnel monitoring and auto-recovery; (5) Backup failures with verification scripts. Includes summary response matrix and preventive measures checklist.",
       "category": "documentation",
-      "discovered_at": "2025-12-19T17:25:40.935659+00:00"
+      "discovered_at": "2025-12-19T18:35:59.122917+00:00"
     }
   },
-  "last_updated": "2025-12-19T17:25:40.935673+00:00"
+  "last_updated": "2025-12-19T18:35:59.123217+00:00"
 }
