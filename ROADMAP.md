@@ -3398,4 +3398,327 @@ File Storage:                         ~  500 MB (external storage)
 
 ---
 
+## Vendure vs Medusa 2.0: Multi-Brand/Multi-Domain Comparison
+
+This comparison evaluates both headless e-commerce platforms for future multi-brand expansion scenarios including **Adam Robotics**, **Adam Automotive**, and **Adam Defense** as separate storefronts with distinct branding but potentially shared infrastructure.
+
+### Platform Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    MULTI-BRAND E-COMMERCE SCENARIO                               │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│   ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐             │
+│   │  Adam Robotics   │  │  Adam Automotive │  │   Adam Defense   │             │
+│   │   (robotics.     │  │   (automotive.   │  │   (defense.      │             │
+│   │  adamtech.com)   │  │  adamtech.com)   │  │  adamtech.com)   │             │
+│   │                  │  │                  │  │                  │             │
+│   │  • Industrial    │  │  • Auto parts    │  │  • Security gear │             │
+│   │    robots        │  │  • Accessories   │  │  • Tactical      │             │
+│   │  • Components    │  │  • Tools         │  │    equipment     │             │
+│   └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘             │
+│            │                     │                     │                         │
+│            └─────────────────────┼─────────────────────┘                         │
+│                                  │                                               │
+│                                  ▼                                               │
+│   ┌─────────────────────────────────────────────────────────────────────────┐   │
+│   │                    SHARED E-COMMERCE BACKEND                             │   │
+│   │                                                                          │   │
+│   │     Option A: VENDURE             │      Option B: MEDUSA 2.0           │   │
+│   │   ┌─────────────────────────┐     │    ┌─────────────────────────┐      │   │
+│   │   │  Built-in Multi-Channel │     │    │  Multi-tenant via       │      │   │
+│   │   │  Single instance,       │     │    │  Sales Channels or      │      │   │
+│   │   │  multiple storefronts   │     │    │  separate instances     │      │   │
+│   │   └─────────────────────────┘     │    └─────────────────────────┘      │   │
+│   │                                                                          │   │
+│   └─────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Feature Comparison Table
+
+| Feature | Vendure | Medusa 2.0 | Winner |
+|---------|---------|------------|--------|
+| **Multi-Channel/Multi-Store** | ✅ Built-in Channels (native) | ⚠️ Sales Channels (basic) | **Vendure** |
+| **Multi-Tenant Architecture** | ✅ Single instance, multiple channels | ⚠️ Separate instances recommended | **Vendure** |
+| **GraphQL API** | ✅ Native (primary API) | ⚠️ Not available (REST only) | **Vendure** |
+| **REST API** | ⚠️ Available via plugin | ✅ Native (primary API) | **Medusa** |
+| **TypeScript Support** | ✅ Full TypeScript | ✅ Full TypeScript | Tie |
+| **Open Source License** | MIT | MIT | Tie |
+| **Admin Dashboard** | ✅ Angular-based (included) | ✅ React-based (included) | Tie |
+| **Plugin Ecosystem** | ⚠️ Growing (smaller) | ✅ Larger ecosystem | **Medusa** |
+| **Documentation Quality** | ✅ Excellent | ✅ Excellent | Tie |
+| **Community Size** | ⚠️ Smaller | ✅ Larger | **Medusa** |
+| **Self-Hosting Complexity** | ⚠️ Moderate | ✅ Easier | **Medusa** |
+| **Database Support** | PostgreSQL, MySQL, SQLite | PostgreSQL only | **Vendure** |
+| **Product Variants** | ✅ Unlimited, flexible | ✅ Good support | Tie |
+| **Per-Channel Pricing** | ✅ Native support | ⚠️ Requires customization | **Vendure** |
+| **Per-Channel Inventory** | ✅ Native support | ⚠️ Via sales channels | **Vendure** |
+| **Shared Product Catalog** | ✅ Products belong to channels | ⚠️ Complex setup | **Vendure** |
+| **Independent Branding** | ✅ Per-channel customization | ⚠️ Separate frontends | **Vendure** |
+| **Development Speed** | ⚠️ Steeper learning curve | ✅ Faster to start | **Medusa** |
+| **Scalability** | ✅ Enterprise-grade | ✅ Good for SMB | Tie |
+| **Payment Integrations** | ✅ Stripe, PayPal, etc. | ✅ Stripe, PayPal, etc. | Tie |
+| **Hosting Requirements** | 2GB+ RAM | 2GB+ RAM | Tie |
+
+### Multi-Brand Architecture Comparison
+
+#### Vendure Multi-Channel Approach
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                      VENDURE MULTI-CHANNEL ARCHITECTURE                          │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│                         SINGLE VENDURE INSTANCE                                  │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │
+│  │                                                                            │  │
+│  │   ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────────────┐ │  │
+│  │   │ Channel:        │ │ Channel:        │ │ Channel:                    │ │  │
+│  │   │ Adam Robotics   │ │ Adam Automotive │ │ Adam Defense                │ │  │
+│  │   ├─────────────────┤ ├─────────────────┤ ├─────────────────────────────┤ │  │
+│  │   │ • Own pricing   │ │ • Own pricing   │ │ • Own pricing               │ │  │
+│  │   │ • Own inventory │ │ • Own inventory │ │ • Own inventory             │ │  │
+│  │   │ • Own shipping  │ │ • Own shipping  │ │ • Own shipping              │ │  │
+│  │   │ • Own currency  │ │ • Own currency  │ │ • Own currency              │ │  │
+│  │   │ • Own tax rules │ │ • Own tax rules │ │ • Own tax rules             │ │  │
+│  │   └────────┬────────┘ └────────┬────────┘ └──────────────┬──────────────┘ │  │
+│  │            │                   │                         │                │  │
+│  │            └───────────────────┼─────────────────────────┘                │  │
+│  │                                │                                          │  │
+│  │                                ▼                                          │  │
+│  │   ┌────────────────────────────────────────────────────────────────────┐  │  │
+│  │   │              SHARED RESOURCES                                      │  │  │
+│  │   │  • Single PostgreSQL database                                      │  │  │
+│  │   │  • Shared product catalog (assigned to channels)                   │  │  │
+│  │   │  • Unified admin dashboard                                         │  │  │
+│  │   │  • Single GraphQL API endpoint                                     │  │  │
+│  │   │  • Consolidated reporting                                          │  │  │
+│  │   └────────────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                            │  │
+│  └───────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                  │
+│  PROS:                              │ CONS:                                     │
+│  ✅ Single deployment               │ ❌ Steeper learning curve                 │
+│  ✅ Unified inventory management    │ ❌ GraphQL requires more setup            │
+│  ✅ Easy cross-channel analytics    │ ❌ Smaller plugin ecosystem               │
+│  ✅ Shared customer accounts        │ ❌ Angular admin may be unfamiliar        │
+│  ✅ Lower infrastructure cost       │ ❌ Single point of failure                │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Medusa 2.0 Multi-Instance Approach
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                     MEDUSA 2.0 MULTI-INSTANCE ARCHITECTURE                       │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────────┐    │
+│  │  MEDUSA INSTANCE 1  │ │  MEDUSA INSTANCE 2  │ │  MEDUSA INSTANCE 3      │    │
+│  │   Adam Robotics     │ │   Adam Automotive   │ │   Adam Defense          │    │
+│  ├─────────────────────┤ ├─────────────────────┤ ├─────────────────────────┤    │
+│  │ • PostgreSQL DB 1   │ │ • PostgreSQL DB 2   │ │ • PostgreSQL DB 3       │    │
+│  │ • Products: 100     │ │ • Products: 100     │ │ • Products: 100         │    │
+│  │ • Own admin panel   │ │ • Own admin panel   │ │ • Own admin panel       │    │
+│  │ • REST API :9000    │ │ • REST API :9001    │ │ • REST API :9002        │    │
+│  │ • Full isolation    │ │ • Full isolation    │ │ • Full isolation        │    │
+│  └──────────┬──────────┘ └──────────┬──────────┘ └────────────┬────────────┘    │
+│             │                       │                         │                  │
+│             │                       │                         │                  │
+│             ▼                       ▼                         ▼                  │
+│  ┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────────┐    │
+│  │  Astro Storefront   │ │  Astro Storefront   │ │  Astro Storefront       │    │
+│  │  robotics.adam.com  │ │  automotive.adam.com│ │  defense.adam.com       │    │
+│  └─────────────────────┘ └─────────────────────┘ └─────────────────────────┘    │
+│                                                                                  │
+│  PROS:                              │ CONS:                                     │
+│  ✅ Complete isolation              │ ❌ 3x infrastructure cost                 │
+│  ✅ Independent scaling             │ ❌ No shared inventory                    │
+│  ✅ Easier per-brand customization  │ ❌ Separate admin dashboards             │
+│  ✅ Familiar REST API               │ ❌ Complex cross-brand reporting         │
+│  ✅ Faster initial development      │ ❌ No shared customer accounts           │
+│  ✅ No single point of failure      │ ❌ Higher maintenance overhead           │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Multi-Brand Scenario Analysis
+
+| Scenario | Vendure | Medusa 2.0 | Recommendation |
+|----------|---------|------------|----------------|
+| **3 brands, shared inventory** | ✅ Native channels | ❌ Not supported | Vendure |
+| **3 brands, separate inventory** | ✅ Channel isolation | ✅ Separate instances | Tie |
+| **Unified customer accounts** | ✅ Built-in | ❌ Requires custom auth | Vendure |
+| **Independent brand evolution** | ⚠️ Constrained by shared code | ✅ Full independence | Medusa |
+| **Single admin dashboard** | ✅ Multi-channel admin | ❌ Separate admins | Vendure |
+| **Cross-brand analytics** | ✅ Unified reporting | ⚠️ Custom aggregation needed | Vendure |
+| **Budget-conscious (1 VPS)** | ✅ Single instance | ❌ 3 instances needed | Vendure |
+| **Team familiar with REST** | ⚠️ GraphQL primary | ✅ REST native | Medusa |
+| **Rapid initial deployment** | ⚠️ Longer setup | ✅ Faster start | Medusa |
+| **Long-term maintainability** | ✅ Centralized | ⚠️ Distributed complexity | Vendure |
+
+### Infrastructure Cost Comparison
+
+| Resource | Vendure (Single Instance) | Medusa (3 Instances) |
+|----------|---------------------------|----------------------|
+| **VPS Requirements** | 1× 4GB RAM VPS | 3× 2GB RAM VPS or 1× 8GB |
+| **Database** | 1× PostgreSQL | 3× PostgreSQL |
+| **Monthly Cost (Hetzner)** | ~€8/month (CX21) | ~€15-24/month |
+| **Admin Dashboards** | 1 unified | 3 separate |
+| **Deployment Complexity** | Single Docker stack | 3 Docker stacks |
+| **Backup Strategy** | 1 database backup | 3 database backups |
+| **SSL Certificates** | 1 wildcard or 3 certs | 3 certificates |
+
+### Code Example: Vendure Multi-Channel Configuration
+
+```typescript
+// vendure-config.ts
+import { VendureConfig } from '@vendure/core';
+
+export const config: VendureConfig = {
+  channelTokenKey: 'vendure-token',
+  defaultChannelToken: 'default-channel',
+  customFields: {
+    Channel: [
+      { name: 'brandColor', type: 'string' },
+      { name: 'logo', type: 'string' },
+      { name: 'contactEmail', type: 'string' },
+    ],
+  },
+};
+
+// Creating channels via Admin API
+const roboticsChannel = {
+  code: 'adam-robotics',
+  token: 'robotics-token',
+  defaultLanguageCode: 'en',
+  currencyCode: 'USD',
+  pricesIncludeTax: false,
+};
+
+const automotiveChannel = {
+  code: 'adam-automotive',
+  token: 'automotive-token',
+  defaultLanguageCode: 'en',
+  currencyCode: 'USD',
+  pricesIncludeTax: false,
+};
+
+const defenseChannel = {
+  code: 'adam-defense',
+  token: 'defense-token',
+  defaultLanguageCode: 'en',
+  currencyCode: 'USD',
+  pricesIncludeTax: false,
+};
+```
+
+### Code Example: Medusa Sales Channels Configuration
+
+```typescript
+// medusa-config.ts (per instance)
+module.exports = {
+  projectConfig: {
+    // Each instance has its own config
+    store_name: "Adam Robotics Store", // Change per brand
+    database_url: process.env.DATABASE_URL,
+    redis_url: process.env.REDIS_URL,
+  },
+  modules: {
+    // Sales channels for sub-categorization within instance
+    // But NOT for multi-brand separation
+  },
+};
+
+// Medusa's sales channels are for categorizing within ONE store
+// e.g., "Online", "Wholesale", "Retail" - not separate brands
+```
+
+### Decision Matrix: Which Platform to Choose?
+
+| If You Need... | Choose |
+|----------------|--------|
+| Multiple brands on single infrastructure | **Vendure** |
+| Shared product catalog across brands | **Vendure** |
+| Unified customer experience | **Vendure** |
+| Single admin for all brands | **Vendure** |
+| Complete brand isolation | **Medusa** |
+| Faster initial development | **Medusa** |
+| Team prefers REST over GraphQL | **Medusa** |
+| Each brand to evolve independently | **Medusa** |
+| Larger plugin ecosystem | **Medusa** |
+| Lower learning curve | **Medusa** |
+
+### Recommendation for Adam Multi-Brand Expansion
+
+**Primary Recommendation: Vendure**
+
+For the scenario of expanding to **Adam Robotics**, **Adam Automotive**, and **Adam Defense** as related brands under a parent organization, **Vendure** is the recommended choice for the following reasons:
+
+1. **Native Multi-Channel Architecture**: Vendure's built-in channel system is specifically designed for multi-brand/multi-store scenarios. Each brand can have its own pricing, inventory, tax rules, and shipping configurations while sharing a single codebase and database.
+
+2. **Cost Efficiency**: Running a single Vendure instance for 3 brands requires significantly less infrastructure than 3 separate Medusa instances. This translates to:
+   - ~50% lower hosting costs
+   - Single deployment pipeline
+   - One backup strategy
+   - Unified monitoring
+
+3. **Unified Administration**: Store managers can switch between channels in a single admin dashboard, making it easier to:
+   - Cross-list products between brands
+   - View consolidated sales reports
+   - Manage shared customer accounts
+   - Apply consistent policies
+
+4. **Scalability Path**: As the brands grow, Vendure's architecture can handle enterprise-scale operations without restructuring. Medusa would require migrating to a more complex multi-tenant setup.
+
+5. **GraphQL Benefits**: While requiring initial learning, Vendure's GraphQL API enables:
+   - Efficient data fetching (no over-fetching)
+   - Strong typing for frontend development
+   - Flexible queries for varied storefront needs
+
+**When to Choose Medusa Instead:**
+
+- **Current Project (danieltarazona.com)**: For the single-brand portfolio store with 100 products, Medusa 2.0 remains the better choice due to:
+  - Simpler initial setup
+  - REST API familiarity
+  - Sufficient for single-store needs
+  - Already documented in this roadmap
+
+- **Future Multi-Brand (if isolation is critical)**: If Adam Robotics, Adam Automotive, and Adam Defense must operate as completely independent entities with:
+  - Separate teams managing each store
+  - No shared products or customers
+  - Potentially different technology stacks per brand
+  - Ability to sell individual brands independently
+
+**Migration Path:**
+
+If starting with Medusa for `danieltarazona.com` and later needing multi-brand:
+
+```
+Phase 1 (Now):        danieltarazona.com → Medusa 2.0 (single store)
+Phase 2 (If needed):  Adam brands → Evaluate Vendure migration
+                      OR
+                      Adam brands → Separate Medusa instances
+```
+
+### Summary Comparison Table
+
+| Aspect | Vendure | Medusa 2.0 | For This Project |
+|--------|---------|------------|------------------|
+| **Single Store (danieltarazona.com)** | Overkill | ✅ Perfect fit | **Medusa** |
+| **Multi-Brand Expansion** | ✅ Best choice | ⚠️ Workable | **Vendure** |
+| **Learning Investment** | Higher | Lower | Medusa now, Vendure later |
+| **Long-term Flexibility** | Higher | Moderate | Depends on growth |
+| **Community Support** | Growing | Established | Medusa |
+
+**Final Verdict:**
+- **For danieltarazona.com (now)**: Stick with **Medusa 2.0** as planned
+- **For Adam multi-brand (future)**: Plan for **Vendure** when expansion begins
+
+---
+
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*
