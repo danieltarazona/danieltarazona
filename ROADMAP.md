@@ -2678,6 +2678,724 @@ For the **danieltarazona.com portfolio and store** project, **Supabase is recomm
 | 3.20 | Configure Nhost client | [ ] |
 | 3.21 | Create serverless functions | [ ] |
 
+### Medusa 2.0 E-Commerce Backend
+
+Medusa 2.0 is a modular, open-source headless commerce platform built with TypeScript and Node.js. It provides a complete backend for e-commerce including product management, order processing, inventory tracking, and a built-in admin dashboard. For this project, Medusa 2.0 powers the `store.danieltarazona.com` storefront with a limit of 100 products.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         MEDUSA 2.0 ARCHITECTURE                                  │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                          MEDUSA 2.0 BACKEND                              │   │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐  │   │
+│  │  │   PostgreSQL    │  │   REST API      │  │     Admin Dashboard     │  │   │
+│  │  │   Database      │  │   Endpoints     │  │   (Built-in React UI)   │  │   │
+│  │  │   (Products,    │  │   /store/*      │  │   /app (default path)   │  │   │
+│  │  │    Orders)      │  │   /admin/*      │  │                         │  │   │
+│  │  └────────┬────────┘  └────────┬────────┘  └─────────────────────────┘  │   │
+│  │           │                    │                                         │   │
+│  │           └─────────┬──────────┘                                         │   │
+│  │                     │                                                    │   │
+│  │  ┌─────────────────┴─────────────────┐  ┌─────────────────────────────┐ │   │
+│  │  │         Core Modules              │  │     Medusa Workflows        │ │   │
+│  │  │  • Product Module                 │  │   (Business Logic SDK)      │ │   │
+│  │  │  • Order Module                   │  │   • Checkout flow           │ │   │
+│  │  │  • Cart Module                    │  │   • Inventory updates       │ │   │
+│  │  │  • Customer Module                │  │   • Order processing        │ │   │
+│  │  │  • Inventory Module               │  └─────────────────────────────┘ │   │
+│  │  │  • Payment Module                 │                                   │   │
+│  │  └───────────────────────────────────┘                                   │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+│                              │                                                   │
+│                              │ HTTP/REST API                                     │
+│                              ▼                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                         CLIENT APPLICATIONS                              │   │
+│  │  ┌─────────────────────┐              ┌─────────────────────┐           │   │
+│  │  │   Astro Storefront  │              │   Next.js Starter   │           │   │
+│  │  │   (Custom Build)    │              │   (Official)        │           │   │
+│  │  │   - Product pages   │              │   - Ready to use    │           │   │
+│  │  │   - Cart/Checkout   │              │   - Server actions  │           │   │
+│  │  └─────────────────────┘              └─────────────────────┘           │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Why Medusa 2.0 for This Project?
+
+| Feature | Benefit |
+|---------|---------|
+| **Open Source** | Full control, no vendor lock-in, MIT licensed |
+| **Self-Hosted** | Data ownership, deploy on own VPS (Coolify) |
+| **100 Products** | Perfect for small catalog, no scaling concerns |
+| **TypeScript** | Type-safe development, excellent IDE support |
+| **Modular Architecture** | Use only needed modules, extend with custom logic |
+| **Built-in Admin** | No need for separate admin panel |
+| **REST API** | Easy integration with Astro storefront |
+
+#### Product Limits & Scope
+
+For the `store.danieltarazona.com` project, we're working within these constraints:
+
+| Resource | Limit | Rationale |
+|----------|-------|-----------|
+| **Products** | 100 max | Small catalog, curated selection |
+| **Variants per Product** | 20 max | Reasonable for size/color combos |
+| **Product Images** | 10 per product | High-quality photography focus |
+| **Categories** | 20 max | Simple navigation structure |
+| **Collections** | 10 max | Featured/seasonal groupings |
+
+**Storage Estimation:**
+```
+Products:         100 × ~5KB average  =   500 KB
+Product Images:   100 × 10 × 500KB    =   500 MB (stored in S3/Cloudflare R2)
+Orders (yearly):  ~500 × 2KB          =     1 MB
+Customers:        ~200 × 1KB          =   200 KB
+───────────────────────────────────────────────
+Database Total:                       ~   10 MB (PostgreSQL)
+File Storage:                         ~  500 MB (external storage)
+```
+
+#### Medusa CLI Installation
+
+- [ ] **Task 3.22**: Install Medusa CLI globally
+  ```bash
+  # Install Medusa CLI via npm (recommended)
+  npm install -g @medusajs/medusa-cli
+
+  # Verify installation
+  medusa --version
+  # @medusajs/medusa-cli/x.x.x
+
+  # Alternative: Use npx without global install
+  npx @medusajs/medusa-cli --version
+
+  # View available commands
+  medusa --help
+  ```
+
+  **Available CLI Commands:**
+  | Command | Description |
+  |---------|-------------|
+  | `medusa new` | Create a new Medusa project |
+  | `medusa develop` | Start development server with hot reload |
+  | `medusa build` | Build for production |
+  | `medusa start` | Start production server |
+  | `medusa db:setup` | Create database and run migrations |
+  | `medusa db:migrate` | Run pending migrations |
+  | `medusa user` | Create admin user |
+
+#### Project Scaffolding
+
+- [ ] **Task 3.23**: Create new Medusa 2.0 project
+  ```bash
+  # Create new project using create-medusa-app (recommended)
+  npx create-medusa-app@latest danieltarazona-store
+
+  # Interactive prompts will ask:
+  # 1. Project name: danieltarazona-store
+  # 2. Install Next.js storefront? (optional)
+  # 3. PostgreSQL database name
+
+  # Alternative: Create with specific version
+  npx create-medusa-app@latest danieltarazona-store --version 2.3.0
+
+  # Alternative: Create plugin project
+  npx create-medusa-app@latest my-medusa-plugin --plugin
+  ```
+
+  **Project Structure Created:**
+  ```
+  danieltarazona-store/
+  ├── .medusa/                # Build output directory
+  ├── src/
+  │   ├── admin/              # Admin dashboard customizations
+  │   │   ├── widgets/        # Custom dashboard widgets
+  │   │   └── routes/         # Custom admin pages
+  │   ├── api/                # Custom API routes
+  │   │   ├── store/          # Storefront API extensions
+  │   │   └── admin/          # Admin API extensions
+  │   ├── jobs/               # Background job handlers
+  │   ├── links/              # Module links (relations)
+  │   ├── modules/            # Custom modules
+  │   ├── subscribers/        # Event subscribers
+  │   └── workflows/          # Custom business workflows
+  ├── integration-tests/      # Integration test files
+  ├── medusa-config.ts        # Main configuration file
+  ├── package.json
+  ├── tsconfig.json
+  └── .env                    # Environment variables
+  ```
+
+- [ ] **Task 3.24**: Navigate and verify project structure
+  ```bash
+  # Enter project directory
+  cd danieltarazona-store
+
+  # Install dependencies (if not done automatically)
+  npm install
+
+  # Build the project
+  npm run build
+
+  # Verify structure
+  ls -la src/
+  ```
+
+#### Database Configuration
+
+- [ ] **Task 3.25**: Configure PostgreSQL database for Medusa
+
+  **Option A: Local PostgreSQL (Development)**
+  ```bash
+  # Install PostgreSQL (macOS)
+  brew install postgresql@15
+  brew services start postgresql@15
+
+  # Install PostgreSQL (Ubuntu/Debian)
+  sudo apt update
+  sudo apt install postgresql postgresql-contrib
+  sudo systemctl start postgresql
+
+  # Create database
+  createdb danieltarazona_store
+
+  # Or via psql
+  psql -U postgres -c "CREATE DATABASE danieltarazona_store;"
+  ```
+
+  **Option B: Docker PostgreSQL (Recommended for Consistency)**
+  ```bash
+  # Create docker-compose.yml for local database
+  cat > docker-compose.yml << 'EOF'
+  version: '3.8'
+  services:
+    postgres:
+      image: postgres:15-alpine
+      container_name: medusa-postgres
+      environment:
+        POSTGRES_USER: medusa
+        POSTGRES_PASSWORD: medusa_password
+        POSTGRES_DB: danieltarazona_store
+      ports:
+        - "5432:5432"
+      volumes:
+        - medusa_postgres_data:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U medusa -d danieltarazona_store"]
+        interval: 5s
+        timeout: 5s
+        retries: 5
+
+    redis:
+      image: redis:7-alpine
+      container_name: medusa-redis
+      ports:
+        - "6379:6379"
+      volumes:
+        - medusa_redis_data:/data
+
+  volumes:
+    medusa_postgres_data:
+    medusa_redis_data:
+  EOF
+
+  # Start containers
+  docker-compose up -d
+
+  # Verify containers are running
+  docker-compose ps
+  ```
+
+  **Option C: Supabase PostgreSQL (Production)**
+  ```bash
+  # Use existing Supabase project for Medusa
+  # Connection string from Supabase dashboard:
+  # postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+
+  # Or create dedicated database in Supabase
+  # Settings > Database > New Database
+  ```
+
+#### Environment Variables
+
+- [ ] **Task 3.26**: Configure environment variables for Medusa
+
+  **Create `.env` file:**
+  ```bash
+  cat > .env << 'EOF'
+  # ============================================
+  # MEDUSA 2.0 ENVIRONMENT CONFIGURATION
+  # ============================================
+
+  # Database Configuration
+  # ----------------------
+  # Local Docker PostgreSQL
+  DATABASE_URL=postgresql://medusa:medusa_password@localhost:5432/danieltarazona_store
+
+  # Or Supabase PostgreSQL (Production)
+  # DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+
+  # Database name (optional if included in DATABASE_URL)
+  DB_NAME=danieltarazona_store
+
+  # Redis Configuration (for events, caching, sessions)
+  # ---------------------------------------------------
+  REDIS_URL=redis://localhost:6379
+
+  # Security Secrets (GENERATE SECURE VALUES FOR PRODUCTION!)
+  # ---------------------------------------------------------
+  # Generate with: openssl rand -hex 32
+  COOKIE_SECRET=supersecret_change_in_production_abc123
+  JWT_SECRET=supersecret_change_in_production_xyz789
+
+  # CORS Configuration
+  # ------------------
+  # Storefront URL (Astro site)
+  STORE_CORS=http://localhost:4321,https://store.danieltarazona.com
+
+  # Admin dashboard URL
+  ADMIN_CORS=http://localhost:9000,https://admin.danieltarazona.com
+
+  # Auth endpoints (comma-separated storefront and admin URLs)
+  AUTH_CORS=http://localhost:4321,http://localhost:9000,https://store.danieltarazona.com,https://admin.danieltarazona.com
+
+  # Server Configuration
+  # --------------------
+  PORT=9000
+  MEDUSA_BACKEND_URL=http://localhost:9000
+
+  # Admin Dashboard
+  # ---------------
+  DISABLE_MEDUSA_ADMIN=false
+  ADMIN_PATH=/app
+
+  # Worker Mode (server | worker | shared)
+  # --------------------------------------
+  # server: API + Admin only
+  # worker: Background jobs only
+  # shared: Both API and worker (default for development)
+  MEDUSA_WORKER_MODE=shared
+
+  # Environment
+  # -----------
+  NODE_ENV=development
+  EOF
+
+  # Secure the file
+  chmod 600 .env
+  ```
+
+  **Environment Variables Reference:**
+
+  | Variable | Required | Description | Example |
+  |----------|----------|-------------|---------|
+  | `DATABASE_URL` | ✅ | PostgreSQL connection string | `postgresql://user:pass@host:5432/db` |
+  | `REDIS_URL` | ⚠️ | Redis connection (required for events) | `redis://localhost:6379` |
+  | `COOKIE_SECRET` | ✅ | Session cookie encryption key | 32+ char random string |
+  | `JWT_SECRET` | ✅ | JWT token signing key | 32+ char random string |
+  | `STORE_CORS` | ✅ | Allowed storefront origins | `https://store.example.com` |
+  | `ADMIN_CORS` | ✅ | Allowed admin origins | `https://admin.example.com` |
+  | `AUTH_CORS` | ✅ | Allowed auth origins | Comma-separated URLs |
+  | `PORT` | ❌ | Server port (default: 9000) | `9000` |
+  | `MEDUSA_WORKER_MODE` | ❌ | Worker configuration | `server`, `worker`, `shared` |
+  | `DISABLE_MEDUSA_ADMIN` | ❌ | Disable admin dashboard | `true` or `false` |
+
+  **Generate Secure Secrets:**
+  ```bash
+  # Generate COOKIE_SECRET
+  echo "COOKIE_SECRET=$(openssl rand -hex 32)"
+
+  # Generate JWT_SECRET
+  echo "JWT_SECRET=$(openssl rand -hex 32)"
+  ```
+
+#### Medusa Configuration File
+
+- [ ] **Task 3.27**: Configure `medusa-config.ts`
+  ```typescript
+  // medusa-config.ts
+  import { defineConfig } from "@medusajs/medusa";
+  import { loadEnv } from "@medusajs/utils";
+
+  // Load environment variables
+  loadEnv(process.env.NODE_ENV || "development", process.cwd());
+
+  export default defineConfig({
+    // Project configuration
+    projectConfig: {
+      // Database connection
+      databaseUrl: process.env.DATABASE_URL,
+      databaseName: process.env.DB_NAME || "danieltarazona_store",
+
+      // Redis for events and caching
+      redisUrl: process.env.REDIS_URL,
+
+      // Server settings
+      http: {
+        storeCors: process.env.STORE_CORS || "http://localhost:4321",
+        adminCors: process.env.ADMIN_CORS || "http://localhost:9000",
+        authCors: process.env.AUTH_CORS || "http://localhost:4321,http://localhost:9000",
+        jwtSecret: process.env.JWT_SECRET || "supersecret",
+        cookieSecret: process.env.COOKIE_SECRET || "supersecret",
+      },
+
+      // Worker mode
+      workerMode: process.env.MEDUSA_WORKER_MODE as "server" | "worker" | "shared" || "shared",
+    },
+
+    // Admin dashboard configuration
+    admin: {
+      // Dashboard path (default: /app)
+      path: process.env.ADMIN_PATH || "/app",
+
+      // Disable admin (for separate deployment)
+      disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
+
+      // Backend URL for admin API calls
+      backendUrl: process.env.MEDUSA_BACKEND_URL || "http://localhost:9000",
+    },
+
+    // Modules configuration
+    modules: [
+      // Core modules are included by default:
+      // - Product, Order, Cart, Customer, Inventory, Payment, etc.
+
+      // Add custom modules here:
+      // {
+      //   resolve: "./src/modules/custom-module",
+      //   options: { /* module options */ },
+      // },
+    ],
+  });
+  ```
+
+#### Database Setup & Migrations
+
+- [ ] **Task 3.28**: Initialize database and run migrations
+  ```bash
+  # Setup database (creates DB if not exists + runs migrations)
+  npx medusa db:setup
+
+  # Or run migrations only (if database exists)
+  npx medusa db:migrate
+
+  # Check migration status
+  npx medusa db:migrate --status
+
+  # Generate new migration (after schema changes)
+  npx medusa db:generate my_migration_name
+
+  # Rollback last migration
+  npx medusa db:rollback
+  ```
+
+  **Database Schema Overview:**
+  ```
+  ┌─────────────────────────────────────────────────────────────────────────────────┐
+  │                         MEDUSA DATABASE SCHEMA                                   │
+  ├─────────────────────────────────────────────────────────────────────────────────┤
+  │                                                                                  │
+  │  CORE TABLES (auto-created by Medusa):                                          │
+  │  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐           │
+  │  │     product       │  │   product_variant │  │  product_option   │           │
+  │  │  - id             │  │  - id             │  │  - id             │           │
+  │  │  - title          │  │  - product_id     │  │  - product_id     │           │
+  │  │  - handle         │  │  - title          │  │  - title          │           │
+  │  │  - description    │  │  - sku            │  │  - values[]       │           │
+  │  │  - status         │  │  - prices[]       │  └───────────────────┘           │
+  │  │  - metadata       │  │  - inventory_qty  │                                   │
+  │  └───────────────────┘  └───────────────────┘                                   │
+  │                                                                                  │
+  │  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐           │
+  │  │      order        │  │    line_item      │  │     customer      │           │
+  │  │  - id             │  │  - id             │  │  - id             │           │
+  │  │  - customer_id    │  │  - order_id       │  │  - email          │           │
+  │  │  - status         │  │  - variant_id     │  │  - first_name     │           │
+  │  │  - total          │  │  - quantity       │  │  - last_name      │           │
+  │  │  - currency_code  │  │  - unit_price     │  │  - metadata       │           │
+  │  └───────────────────┘  └───────────────────┘  └───────────────────┘           │
+  │                                                                                  │
+  │  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐           │
+  │  │       cart        │  │   payment         │  │   fulfillment     │           │
+  │  │  - id             │  │  - id             │  │  - id             │           │
+  │  │  - customer_id    │  │  - order_id       │  │  - order_id       │           │
+  │  │  - items[]        │  │  - provider_id    │  │  - provider_id    │           │
+  │  │  - region_id      │  │  - amount         │  │  - status         │           │
+  │  └───────────────────┘  └───────────────────┘  └───────────────────┘           │
+  │                                                                                  │
+  └─────────────────────────────────────────────────────────────────────────────────┘
+  ```
+
+- [ ] **Task 3.29**: Create admin user
+  ```bash
+  # Create admin user for dashboard access
+  npx medusa user -e admin@danieltarazona.com -p SecurePassword123!
+
+  # Or with interactive prompt
+  npx medusa user
+
+  # Output:
+  # User admin@danieltarazona.com created successfully
+  ```
+
+#### Starting Development Server
+
+- [ ] **Task 3.30**: Start Medusa development server
+  ```bash
+  # Start development server (with hot reload)
+  npx medusa develop
+
+  # Output:
+  # ┌─────────────────────────────────────────────────────┐
+  # │  Medusa server is running!                          │
+  # ├─────────────────────────────────────────────────────┤
+  # │  Admin:     http://localhost:9000/app               │
+  # │  Store API: http://localhost:9000/store             │
+  # │  Admin API: http://localhost:9000/admin             │
+  # │  Health:    http://localhost:9000/health            │
+  # └─────────────────────────────────────────────────────┘
+
+  # Alternative: Start with specific port
+  PORT=8000 npx medusa develop
+
+  # Build for production
+  npx medusa build
+
+  # Start production server
+  npx medusa start
+
+  # Build admin dashboard only (for separate deployment)
+  npx medusa build --admin-only
+  ```
+
+  **Verify Server is Running:**
+  ```bash
+  # Health check
+  curl http://localhost:9000/health
+  # Response: {"status":"ok"}
+
+  # Store API - List products
+  curl http://localhost:9000/store/products
+
+  # Admin API requires authentication
+  curl http://localhost:9000/admin/products \
+    -H "Authorization: Bearer <jwt-token>"
+  ```
+
+#### Medusa JS SDK for Storefront
+
+- [ ] **Task 3.31**: Configure Medusa JS SDK for Astro storefront
+  ```bash
+  # Install Medusa SDK in storefront project
+  cd ../danieltarazona-storefront  # Astro project
+  npm install @medusajs/js-sdk@latest @medusajs/types@latest
+  ```
+
+  **SDK Configuration (`src/lib/medusa.ts`):**
+  ```typescript
+  import Medusa from "@medusajs/js-sdk";
+
+  // Environment variables
+  const MEDUSA_BACKEND_URL = import.meta.env.PUBLIC_MEDUSA_URL || "http://localhost:9000";
+
+  // Create SDK instance for storefront
+  export const medusa = new Medusa({
+    baseUrl: MEDUSA_BACKEND_URL,
+    debug: import.meta.env.DEV,
+    auth: {
+      type: "session",
+    },
+  });
+
+  // Type-safe API helpers
+  export async function getProducts(limit = 12, offset = 0) {
+    const { products, count } = await medusa.store.product.list({
+      limit,
+      offset,
+    });
+    return { products, count };
+  }
+
+  export async function getProductByHandle(handle: string) {
+    const { products } = await medusa.store.product.list({
+      handle,
+    });
+    return products[0] || null;
+  }
+
+  export async function getCategories() {
+    const { product_categories } = await medusa.store.category.list();
+    return product_categories;
+  }
+
+  export async function createCart(regionId: string) {
+    const { cart } = await medusa.store.cart.create({
+      region_id: regionId,
+    });
+    return cart;
+  }
+
+  export async function addToCart(cartId: string, variantId: string, quantity = 1) {
+    const { cart } = await medusa.store.cart.createLineItem(cartId, {
+      variant_id: variantId,
+      quantity,
+    });
+    return cart;
+  }
+  ```
+
+  **Environment Variables for Storefront:**
+  ```bash
+  # .env in Astro storefront project
+  PUBLIC_MEDUSA_URL=http://localhost:9000
+  # Production:
+  # PUBLIC_MEDUSA_URL=https://api.danieltarazona.com
+  ```
+
+#### Production Deployment Checklist
+
+- [ ] **Task 3.32**: Prepare Medusa for production deployment
+
+  **Security Checklist:**
+  ```bash
+  # 1. Generate production secrets
+  COOKIE_SECRET=$(openssl rand -hex 32)
+  JWT_SECRET=$(openssl rand -hex 32)
+
+  # 2. Update CORS settings for production domains only
+  STORE_CORS=https://store.danieltarazona.com
+  ADMIN_CORS=https://admin.danieltarazona.com
+  AUTH_CORS=https://store.danieltarazona.com,https://admin.danieltarazona.com
+
+  # 3. Use production database (Supabase or managed PostgreSQL)
+  DATABASE_URL=postgresql://user:password@host:5432/database?sslmode=require
+
+  # 4. Enable SSL/TLS for all connections
+  # 5. Set NODE_ENV=production
+  NODE_ENV=production
+  ```
+
+  **Docker Production Setup:**
+  ```dockerfile
+  # Dockerfile for Medusa production
+  FROM node:20-alpine AS builder
+
+  WORKDIR /app
+
+  # Copy package files
+  COPY package*.json ./
+
+  # Install dependencies
+  RUN npm ci --only=production
+
+  # Copy source code
+  COPY . .
+
+  # Build the application
+  RUN npm run build
+
+  # Production stage
+  FROM node:20-alpine AS runner
+
+  WORKDIR /app
+
+  # Copy built application
+  COPY --from=builder /app/.medusa ./.medusa
+  COPY --from=builder /app/node_modules ./node_modules
+  COPY --from=builder /app/package.json ./package.json
+  COPY --from=builder /app/medusa-config.ts ./medusa-config.ts
+
+  # Set environment
+  ENV NODE_ENV=production
+  ENV PORT=9000
+
+  EXPOSE 9000
+
+  # Health check
+  HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:9000/health || exit 1
+
+  # Start server
+  CMD ["npm", "run", "start"]
+  ```
+
+  **docker-compose.production.yml:**
+  ```yaml
+  version: '3.8'
+  services:
+    medusa:
+      build:
+        context: .
+        dockerfile: Dockerfile
+      container_name: medusa-backend
+      environment:
+        - NODE_ENV=production
+        - DATABASE_URL=${DATABASE_URL}
+        - REDIS_URL=${REDIS_URL}
+        - COOKIE_SECRET=${COOKIE_SECRET}
+        - JWT_SECRET=${JWT_SECRET}
+        - STORE_CORS=${STORE_CORS}
+        - ADMIN_CORS=${ADMIN_CORS}
+        - AUTH_CORS=${AUTH_CORS}
+      ports:
+        - "9000:9000"
+      depends_on:
+        - redis
+      restart: unless-stopped
+
+    redis:
+      image: redis:7-alpine
+      container_name: medusa-redis
+      volumes:
+        - redis_data:/data
+      restart: unless-stopped
+
+  volumes:
+    redis_data:
+  ```
+
+#### Medusa Tasks Summary
+
+| Task | Description | Status |
+|------|-------------|--------|
+| 3.22 | Install Medusa CLI | [ ] |
+| 3.23 | Create new Medusa project | [ ] |
+| 3.24 | Verify project structure | [ ] |
+| 3.25 | Configure PostgreSQL database | [ ] |
+| 3.26 | Set up environment variables | [ ] |
+| 3.27 | Configure medusa-config.ts | [ ] |
+| 3.28 | Run database migrations | [ ] |
+| 3.29 | Create admin user | [ ] |
+| 3.30 | Start development server | [ ] |
+| 3.31 | Configure Medusa JS SDK | [ ] |
+| 3.32 | Prepare production deployment | [ ] |
+
+#### Medusa API Quick Reference
+
+**Store API Endpoints (Public):**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/store/products` | GET | List products |
+| `/store/products/:id` | GET | Get product by ID |
+| `/store/collections` | GET | List collections |
+| `/store/categories` | GET | List categories |
+| `/store/carts` | POST | Create cart |
+| `/store/carts/:id` | GET | Get cart |
+| `/store/carts/:id/line-items` | POST | Add item to cart |
+| `/store/carts/:id/complete` | POST | Complete checkout |
+
+**Admin API Endpoints (Authenticated):**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/admin/products` | GET/POST | Manage products |
+| `/admin/orders` | GET | List orders |
+| `/admin/customers` | GET | List customers |
+| `/admin/inventory-items` | GET | Manage inventory |
+
 ---
 
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*
