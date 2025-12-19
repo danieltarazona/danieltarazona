@@ -13497,4 +13497,693 @@ This section covers deploying Astro static sites directly to Cloudflare Pages wi
 
 ---
 
+## Appendix A: Comprehensive Environment Variables Reference
+
+This appendix provides a consolidated reference of all environment variables used across the project stack. Each service has its own `.env` file with variables specific to its functionality.
+
+### Service Overview
+
+| Service | Environment File | Purpose |
+|---------|------------------|---------|
+| **Astro Portfolio** | `portfolio/.env` | Portfolio site configuration |
+| **Astro Storefront** | `store/.env` | E-commerce storefront configuration |
+| **Medusa Backend** | `medusa-backend/.env` | Headless commerce API configuration |
+| **Deno Functions** | `deno-functions/.env` | Serverless functions configuration |
+| **Cloudflare Workers** | `workers/wrangler.toml` | Edge workers configuration |
+| **GitHub Actions** | Repository Secrets | CI/CD pipeline secrets |
+| **Coolify** | Application Settings | Deployment environment |
+
+---
+
+### Astro Portfolio Site (`portfolio/.env`)
+
+Environment variables for the main portfolio and photo gallery site at `danieltarazona.com`.
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `PUBLIC_SITE_URL` | Yes | Public URL of the portfolio site | `https://danieltarazona.com` |
+| `PUBLIC_CONTACT_EMAIL` | Yes | Contact email displayed on site | `contact@danieltarazona.com` |
+| `SUPABASE_URL` | Yes | Supabase project URL for contact form | `https://xxxx.supabase.co` |
+| `SUPABASE_ANON_KEY` | Yes | Supabase anonymous key (public) | `eyJhbGciOi...` |
+| `SUPABASE_SERVICE_ROLE_KEY` | No | Supabase service role key (server-only) | `eyJhbGciOi...` |
+| `PUBLIC_ANALYTICS_ID` | No | Google Analytics or Plausible ID | `G-XXXXXXXXXX` |
+| `PUBLIC_TWITTER_HANDLE` | No | Twitter/X handle for social meta | `@danieltarazona` |
+| `PUBLIC_GITHUB_URL` | No | GitHub profile URL | `https://github.com/danieltarazona` |
+| `PUBLIC_LINKEDIN_URL` | No | LinkedIn profile URL | `https://linkedin.com/in/danieltarazona` |
+
+**Example `.env` file:**
+
+```bash
+# ===========================================
+# ASTRO PORTFOLIO ENVIRONMENT VARIABLES
+# ===========================================
+
+# Site Configuration
+PUBLIC_SITE_URL=https://danieltarazona.com
+PUBLIC_CONTACT_EMAIL=contact@danieltarazona.com
+
+# Supabase Configuration (Contact Form)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+# Server-only (NEVER expose in client code)
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# Analytics (Optional)
+PUBLIC_ANALYTICS_ID=G-XXXXXXXXXX
+
+# Social Links (Optional)
+PUBLIC_TWITTER_HANDLE=@danieltarazona
+PUBLIC_GITHUB_URL=https://github.com/danieltarazona
+PUBLIC_LINKEDIN_URL=https://linkedin.com/in/danieltarazona
+```
+
+---
+
+### Astro Storefront (`store/.env`)
+
+Environment variables for the e-commerce storefront at `store.danieltarazona.com`.
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `PUBLIC_SITE_URL` | Yes | Public URL of the store | `https://store.danieltarazona.com` |
+| `PUBLIC_SITE_NAME` | Yes | Store display name | `Daniel Tarazona Store` |
+| `PUBLIC_MEDUSA_BACKEND_URL` | Yes | Medusa API endpoint URL | `https://api.danieltarazona.com` |
+| `PUBLIC_MEDUSA_PUBLISHABLE_KEY` | Yes | Medusa publishable API key | `pk_xxxxxxxxxxxxx` |
+| `PUBLIC_STRIPE_KEY` | No | Stripe publishable key (client-side) | `pk_live_xxxxxxxxx` |
+| `PUBLIC_GA_TRACKING_ID` | No | Google Analytics tracking ID | `G-XXXXXXXXXX` |
+| `PUBLIC_PLAUSIBLE_DOMAIN` | No | Plausible Analytics domain | `store.danieltarazona.com` |
+| `PUBLIC_ENABLE_REVIEWS` | No | Enable product reviews feature | `true` or `false` |
+| `PUBLIC_ENABLE_WISHLIST` | No | Enable wishlist feature | `true` or `false` |
+| `PUBLIC_ENABLE_CUSTOMER_ACCOUNTS` | No | Enable customer accounts | `true` or `false` |
+| `PUBLIC_IMAGE_CDN_URL` | No | Custom image CDN URL | `https://images.danieltarazona.com` |
+
+**Example `.env` file:**
+
+```bash
+# ===========================================
+# ASTRO STOREFRONT ENVIRONMENT VARIABLES
+# ===========================================
+
+# Site Configuration
+PUBLIC_SITE_URL=https://store.danieltarazona.com
+PUBLIC_SITE_NAME="Daniel Tarazona Store"
+
+# Medusa Backend Configuration
+PUBLIC_MEDUSA_BACKEND_URL=https://api.danieltarazona.com
+PUBLIC_MEDUSA_PUBLISHABLE_KEY=pk_xxxxxxxxxxxxx
+
+# Stripe Configuration (Client-Side)
+PUBLIC_STRIPE_KEY=pk_live_xxxxxxxxx
+
+# Analytics (Optional)
+PUBLIC_GA_TRACKING_ID=G-XXXXXXXXXX
+PUBLIC_PLAUSIBLE_DOMAIN=store.danieltarazona.com
+
+# Feature Flags
+PUBLIC_ENABLE_REVIEWS=false
+PUBLIC_ENABLE_WISHLIST=false
+PUBLIC_ENABLE_CUSTOMER_ACCOUNTS=true
+
+# CDN Configuration (Optional)
+PUBLIC_IMAGE_CDN_URL=https://images.danieltarazona.com
+```
+
+---
+
+### Medusa 2.0 Backend (`medusa-backend/.env`)
+
+Environment variables for the Medusa 2.0 headless commerce backend.
+
+#### Core Configuration
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `NODE_ENV` | Yes | Node.js environment | `development` or `production` |
+| `PORT` | No | Server port (default: 9000) | `9000` |
+| `MEDUSA_BACKEND_URL` | Yes | Public backend URL | `https://api.danieltarazona.com` |
+| `MEDUSA_WORKER_MODE` | No | Worker mode configuration | `shared`, `server`, or `worker` |
+
+#### Database Configuration
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string | `postgresql://user:pass@host:5432/db` |
+| `DB_NAME` | No | Database name (if not in URL) | `danieltarazona_store` |
+| `REDIS_URL` | Yes | Redis connection URL | `redis://localhost:6379` |
+
+#### Security & Authentication
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `JWT_SECRET` | Yes | JWT signing secret (64+ chars) | `openssl rand -hex 64` |
+| `COOKIE_SECRET` | Yes | Cookie signing secret (64+ chars) | `openssl rand -hex 64` |
+
+#### CORS Configuration
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `STORE_CORS` | Yes | Allowed origins for store API | `https://store.danieltarazona.com` |
+| `ADMIN_CORS` | Yes | Allowed origins for admin API | `https://admin.danieltarazona.com` |
+| `AUTH_CORS` | Yes | Allowed origins for auth endpoints | `https://store.danieltarazona.com,https://admin.danieltarazona.com` |
+
+#### Admin Dashboard
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `ADMIN_PATH` | No | Admin dashboard URL path | `/app` |
+| `DISABLE_MEDUSA_ADMIN` | No | Disable built-in admin | `true` or `false` |
+
+#### Payment Providers
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `STRIPE_API_KEY` | No | Stripe secret API key | `sk_live_xxxxxxxxx` |
+| `STRIPE_WEBHOOK_SECRET` | No | Stripe webhook signing secret | `whsec_xxxxxxxxx` |
+
+#### Email Configuration
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `SMTP_HOST` | No | SMTP server hostname | `smtp.resend.com` |
+| `SMTP_PORT` | No | SMTP server port | `465` |
+| `SMTP_USER` | No | SMTP username | `resend` |
+| `SMTP_PASSWORD` | No | SMTP password/API key | `re_xxxxxxxxxxxxx` |
+| `SMTP_FROM` | No | Default "from" email address | `store@danieltarazona.com` |
+
+#### File Storage (S3-Compatible)
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `S3_URL` | No | S3-compatible endpoint URL | `https://xxxx.r2.cloudflarestorage.com` |
+| `S3_BUCKET` | No | S3 bucket name | `medusa-files` |
+| `S3_REGION` | No | S3 region | `auto` (for R2) |
+| `S3_ACCESS_KEY_ID` | No | S3 access key | `xxxxxxxxxxxxx` |
+| `S3_SECRET_ACCESS_KEY` | No | S3 secret key | `xxxxxxxxxxxxx` |
+
+#### Logging & Monitoring
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `LOG_LEVEL` | No | Logging verbosity | `info`, `debug`, `warn`, `error` |
+
+**Example `.env` file:**
+
+```bash
+# ============================================
+# MEDUSA 2.0 ENVIRONMENT CONFIGURATION
+# ============================================
+
+# Core Configuration
+NODE_ENV=development
+PORT=9000
+MEDUSA_BACKEND_URL=http://localhost:9000
+MEDUSA_WORKER_MODE=shared
+
+# Database Configuration
+DATABASE_URL=postgresql://medusa:medusa_password@localhost:5432/danieltarazona_store
+DB_NAME=danieltarazona_store
+REDIS_URL=redis://localhost:6379
+
+# Security (Generate with: openssl rand -hex 64)
+JWT_SECRET=your_64_character_jwt_secret_here
+COOKIE_SECRET=your_64_character_cookie_secret_here
+
+# CORS Configuration
+STORE_CORS=http://localhost:4321,https://store.danieltarazona.com
+ADMIN_CORS=http://localhost:9000,https://admin.danieltarazona.com
+AUTH_CORS=http://localhost:4321,http://localhost:9000,https://store.danieltarazona.com,https://admin.danieltarazona.com
+
+# Admin Dashboard
+ADMIN_PATH=/app
+DISABLE_MEDUSA_ADMIN=false
+
+# Payment Providers (Production)
+STRIPE_API_KEY=sk_live_xxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+
+# Email Configuration
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=465
+SMTP_USER=resend
+SMTP_PASSWORD=re_xxxxxxxxxxxxx
+SMTP_FROM=store@danieltarazona.com
+
+# File Storage (Cloudflare R2)
+S3_URL=https://xxxx.r2.cloudflarestorage.com
+S3_BUCKET=medusa-files
+S3_REGION=auto
+S3_ACCESS_KEY_ID=xxxxxxxxxxxxx
+S3_SECRET_ACCESS_KEY=xxxxxxxxxxxxx
+
+# Logging
+LOG_LEVEL=info
+```
+
+---
+
+### Deno Functions (`deno-functions/.env`)
+
+Environment variables for Deno serverless functions.
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `DENO_ENV` | No | Deno environment | `development` or `production` |
+| `PORT` | No | Server port (default: 8000) | `8000` |
+| `SUPABASE_URL` | Yes | Supabase project URL | `https://xxxx.supabase.co` |
+| `SUPABASE_ANON_KEY` | Yes | Supabase anonymous key | `eyJhbGciOi...` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key | `eyJhbGciOi...` |
+| `RESEND_API_KEY` | No | Resend email API key | `re_xxxxxxxxxxxxx` |
+| `NOTIFICATION_EMAIL` | No | Email for notifications | `admin@danieltarazona.com` |
+| `FROM_EMAIL` | No | Default "from" email | `noreply@danieltarazona.com` |
+| `MEDUSA_BACKEND_URL` | No | Medusa API URL (for proxy) | `https://api.danieltarazona.com` |
+| `MEDUSA_PUBLISHABLE_KEY` | No | Medusa publishable key | `pk_xxxxxxxxxxxxx` |
+| `RATE_LIMIT_MAX` | No | Max requests per window | `100` |
+| `RATE_LIMIT_WINDOW_MS` | No | Rate limit window (ms) | `60000` |
+| `ALLOWED_ORIGINS` | Yes | Allowed CORS origins | `https://danieltarazona.com` |
+
+**Example `.env` file:**
+
+```bash
+# ===========================================
+# DENO FUNCTIONS ENVIRONMENT VARIABLES
+# ===========================================
+
+# Environment
+DENO_ENV=development
+PORT=8000
+
+# Supabase Configuration
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# Email Notifications (Optional)
+RESEND_API_KEY=re_xxxxxxxxxxxxx
+NOTIFICATION_EMAIL=admin@danieltarazona.com
+FROM_EMAIL=noreply@danieltarazona.com
+
+# Medusa Integration (Optional)
+MEDUSA_BACKEND_URL=https://api.danieltarazona.com
+MEDUSA_PUBLISHABLE_KEY=pk_xxxxxxxxxxxxx
+
+# Rate Limiting
+RATE_LIMIT_MAX=10
+RATE_LIMIT_WINDOW_MS=60000
+
+# CORS
+ALLOWED_ORIGINS=http://localhost:4321,https://danieltarazona.com
+```
+
+---
+
+### Cloudflare Workers (`workers/wrangler.toml`)
+
+Cloudflare Workers configuration in `wrangler.toml` format.
+
+#### Environment Variables (Non-Secret)
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `ENVIRONMENT` | Yes | Deployment environment | `development`, `staging`, `production` |
+| `ALLOWED_ORIGINS` | Yes | Allowed CORS origins (comma-separated) | `https://danieltarazona.com,https://store.danieltarazona.com` |
+| `MEDUSA_BACKEND_URL` | No | Medusa API URL for proxying | `https://api.danieltarazona.com` |
+
+#### Secrets (Set via Wrangler CLI)
+
+| Secret | Required | Description | Set Command |
+|--------|----------|-------------|-------------|
+| `SUPABASE_URL` | Yes | Supabase project URL | `wrangler secret put SUPABASE_URL` |
+| `SUPABASE_ANON_KEY` | Yes | Supabase anonymous key | `wrangler secret put SUPABASE_ANON_KEY` |
+| `RESEND_API_KEY` | No | Resend email API key | `wrangler secret put RESEND_API_KEY` |
+
+#### KV Namespace Bindings
+
+| Binding | Purpose | Description |
+|---------|---------|-------------|
+| `RATE_LIMIT_KV` | Rate limiting | Stores request counts per IP |
+| `CACHE_KV` | Response caching | Caches API responses |
+
+#### D1 Database Bindings (Optional)
+
+| Binding | Purpose | Description |
+|---------|---------|-------------|
+| `DB` | Analytics/Logs | Cloudflare D1 SQLite database |
+
+#### R2 Bucket Bindings (Optional)
+
+| Binding | Purpose | Description |
+|---------|---------|-------------|
+| `ASSETS_BUCKET` | Static assets | Cloudflare R2 object storage |
+
+**Example `wrangler.toml`:**
+
+```toml
+# ===========================================
+# CLOUDFLARE WORKERS CONFIGURATION
+# ===========================================
+
+name = "danieltarazona-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+node_compat = true
+
+# Routes
+routes = [
+  { pattern = "api.danieltarazona.com/*", zone_name = "danieltarazona.com" }
+]
+
+# Environment Variables (Non-Secret)
+[vars]
+ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://danieltarazona.com,https://store.danieltarazona.com"
+MEDUSA_BACKEND_URL = "https://api.danieltarazona.com/medusa"
+
+# KV Namespace Bindings
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+preview_id = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+preview_id = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+# D1 Database Binding (Optional)
+[[d1_databases]]
+binding = "DB"
+database_name = "danieltarazona-db"
+database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# R2 Bucket Binding (Optional)
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "danieltarazona-assets"
+
+# Development Environment
+[env.development]
+name = "danieltarazona-api-dev"
+vars = { ENVIRONMENT = "development" }
+
+# Staging Environment
+[env.staging]
+name = "danieltarazona-api-staging"
+vars = { ENVIRONMENT = "staging" }
+```
+
+**Setting Secrets via Wrangler CLI:**
+
+```bash
+# Set secrets (will prompt for value)
+wrangler secret put SUPABASE_URL
+wrangler secret put SUPABASE_ANON_KEY
+wrangler secret put RESEND_API_KEY
+
+# Set secret with value directly
+echo "your-secret-value" | wrangler secret put SECRET_NAME
+
+# List all secrets
+wrangler secret list
+```
+
+---
+
+### Nhost Configuration (`nhost/.env`)
+
+Environment variables for Nhost (alternative to Supabase).
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `NHOST_SUBDOMAIN` | Yes | Nhost project subdomain | `your-project-subdomain` |
+| `NHOST_REGION` | Yes | Nhost deployment region | `eu-central-1` |
+| `NHOST_ADMIN_SECRET` | Yes | Hasura admin secret | `your-admin-secret` |
+| `PUBLIC_NHOST_SUBDOMAIN` | Yes | Client-side subdomain | `your-project-subdomain` |
+| `PUBLIC_NHOST_REGION` | Yes | Client-side region | `eu-central-1` |
+| `NHOST_HASURA_URL` | No | Hasura GraphQL endpoint | `http://localhost:1337` |
+| `NHOST_GRAPHQL_URL` | No | GraphQL endpoint | `http://localhost:1337/v1/graphql` |
+| `NHOST_AUTH_URL` | No | Auth service endpoint | `http://localhost:1337/v1/auth` |
+| `NHOST_STORAGE_URL` | No | Storage service endpoint | `http://localhost:1337/v1/storage` |
+| `NHOST_FUNCTIONS_URL` | No | Functions endpoint | `http://localhost:1337/v1/functions` |
+
+**Example `.env` file:**
+
+```bash
+# ===========================================
+# NHOST ENVIRONMENT VARIABLES
+# ===========================================
+
+# Cloud Configuration
+NHOST_SUBDOMAIN=your-project-subdomain
+NHOST_REGION=eu-central-1
+NHOST_ADMIN_SECRET=your-admin-secret
+
+# Client-Side (Public)
+PUBLIC_NHOST_SUBDOMAIN=your-project-subdomain
+PUBLIC_NHOST_REGION=eu-central-1
+
+# Local Development URLs
+NHOST_HASURA_URL=http://localhost:1337
+NHOST_GRAPHQL_URL=http://localhost:1337/v1/graphql
+NHOST_AUTH_URL=http://localhost:1337/v1/auth
+NHOST_STORAGE_URL=http://localhost:1337/v1/storage
+NHOST_FUNCTIONS_URL=http://localhost:1337/v1/functions
+```
+
+---
+
+### Supabase Configuration
+
+Environment variables for Supabase PostgreSQL and services.
+
+| Variable | Required | Description | Example Value |
+|----------|----------|-------------|---------------|
+| `SUPABASE_URL` | Yes | Supabase project URL | `https://xxxx.supabase.co` |
+| `SUPABASE_ANON_KEY` | Yes | Anonymous/public key | `eyJhbGciOi...` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role key (server-only) | `eyJhbGciOi...` |
+| `DATABASE_URL` | Yes | Direct PostgreSQL connection | `postgresql://postgres:pass@db.xxxx.supabase.co:5432/postgres` |
+| `DATABASE_POOLER_URL` | No | Pooled connection (recommended) | `postgresql://postgres.xxxx:pass@aws-0-region.pooler.supabase.co:6543/postgres` |
+
+**Example `.env` file:**
+
+```bash
+# ===========================================
+# SUPABASE ENVIRONMENT VARIABLES
+# ===========================================
+
+# Project Configuration
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+# NEVER expose service role key in client-side code
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# Database Direct Connection
+DATABASE_URL=postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres
+
+# Database Pooled Connection (Recommended for serverless)
+DATABASE_POOLER_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.co:6543/postgres
+```
+
+---
+
+### GitHub Actions Secrets
+
+Repository secrets for GitHub Actions CI/CD workflows.
+
+| Secret Name | Required | Purpose | Where to Get |
+|-------------|----------|---------|--------------|
+| `CLOUDFLARE_API_TOKEN` | Yes | Cloudflare Pages deployment | Cloudflare Dashboard → API Tokens |
+| `CLOUDFLARE_ACCOUNT_ID` | Yes | Cloudflare account identifier | Cloudflare Dashboard → Overview |
+| `CLOUDFLARE_ZONE_ID` | No | Zone ID for cache purging | Cloudflare Dashboard → Zone Overview |
+| `COOLIFY_WEBHOOK_URL` | Yes | Trigger Coolify deployments | Coolify → Application → Webhooks |
+| `COOLIFY_WEBHOOK_SECRET` | Yes | Authenticate webhook requests | Coolify → Application → Webhooks |
+| `SUPABASE_URL` | Yes | Supabase project URL | Supabase Dashboard → Settings → API |
+| `SUPABASE_ANON_KEY` | Yes | Supabase anonymous key | Supabase Dashboard → Settings → API |
+| `MEDUSA_PUBLISHABLE_KEY` | No | Medusa publishable API key | Medusa Admin Dashboard |
+| `DISCORD_WEBHOOK_URL` | No | Discord notifications | Discord Server Settings → Integrations |
+| `SLACK_WEBHOOK_URL` | No | Slack notifications | Slack App → Incoming Webhooks |
+
+**Adding Secrets via GitHub CLI:**
+
+```bash
+# Authenticate with GitHub
+gh auth login
+
+# Add Cloudflare secrets
+gh secret set CLOUDFLARE_API_TOKEN --body "your-cloudflare-api-token"
+gh secret set CLOUDFLARE_ACCOUNT_ID --body "your-cloudflare-account-id"
+gh secret set CLOUDFLARE_ZONE_ID --body "your-cloudflare-zone-id"
+
+# Add Coolify secrets
+gh secret set COOLIFY_WEBHOOK_URL --body "https://coolify.yourdomain.com/webhook/abc123"
+gh secret set COOLIFY_WEBHOOK_SECRET --body "your-webhook-secret"
+
+# Add Supabase secrets
+gh secret set SUPABASE_URL --body "https://your-project.supabase.co"
+gh secret set SUPABASE_ANON_KEY --body "your-anon-key"
+
+# Add Medusa secret
+gh secret set MEDUSA_PUBLISHABLE_KEY --body "pk_xxxxxxxxxxxxx"
+
+# Add notification webhooks (optional)
+gh secret set DISCORD_WEBHOOK_URL --body "https://discord.com/api/webhooks/..."
+gh secret set SLACK_WEBHOOK_URL --body "https://hooks.slack.com/services/..."
+
+# Verify secrets
+gh secret list
+```
+
+---
+
+### Coolify Application Environment Variables
+
+Environment variables configured in Coolify dashboard for Medusa deployment.
+
+| Category | Variable | Description |
+|----------|----------|-------------|
+| **Core** | `NODE_ENV` | `production` |
+| **Core** | `MEDUSA_BACKEND_URL` | Public API URL |
+| **Core** | `STORE_CORS` | Allowed storefront origins |
+| **Core** | `ADMIN_CORS` | Allowed admin origins |
+| **Database** | `DATABASE_URL` | Auto-linked from Coolify database |
+| **Cache** | `REDIS_URL` | Auto-linked from Coolify Redis |
+| **Security** | `JWT_SECRET` | Generated with `openssl rand -hex 64` |
+| **Security** | `COOKIE_SECRET` | Generated with `openssl rand -hex 64` |
+| **Payment** | `STRIPE_API_KEY` | Stripe secret key |
+| **Payment** | `STRIPE_WEBHOOK_SECRET` | Stripe webhook secret |
+| **Email** | `SMTP_HOST` | SMTP server (e.g., `smtp.resend.com`) |
+| **Email** | `SMTP_PORT` | SMTP port (e.g., `465`) |
+| **Email** | `SMTP_USER` | SMTP username |
+| **Email** | `SMTP_PASSWORD` | SMTP password/API key |
+| **Email** | `SMTP_FROM` | Default from address |
+| **Storage** | `S3_URL` | S3-compatible endpoint |
+| **Storage** | `S3_BUCKET` | Bucket name |
+| **Storage** | `S3_REGION` | Bucket region |
+| **Storage** | `S3_ACCESS_KEY_ID` | Access key |
+| **Storage** | `S3_SECRET_ACCESS_KEY` | Secret key |
+| **Logging** | `LOG_LEVEL` | `info`, `debug`, `warn`, `error` |
+| **Backup** | `S3_BACKUP_BUCKET` | Backup bucket name |
+| **Backup** | `S3_BACKUP_ENDPOINT` | Backup S3 endpoint |
+| **Backup** | `S3_BACKUP_ACCESS_KEY` | Backup access key |
+| **Backup** | `S3_BACKUP_SECRET_KEY` | Backup secret key |
+
+---
+
+### Cloudflare Pages Environment Variables
+
+Environment variables set in Cloudflare Pages dashboard.
+
+#### Portfolio Site (Production)
+
+| Variable | Value |
+|----------|-------|
+| `PUBLIC_SITE_URL` | `https://danieltarazona.com` |
+| `PUBLIC_SUPABASE_URL` | `https://xxx.supabase.co` |
+| `PUBLIC_SUPABASE_ANON_KEY` | `eyJhbG...` |
+
+#### Portfolio Site (Preview)
+
+| Variable | Value |
+|----------|-------|
+| `PUBLIC_SITE_URL` | `https://xxx.danieltarazona-portfolio.pages.dev` |
+| `PUBLIC_SUPABASE_URL` | `https://xxx.supabase.co` |
+| `PUBLIC_SUPABASE_ANON_KEY` | `eyJhbG...` |
+
+#### Store Frontend (Production)
+
+| Variable | Value |
+|----------|-------|
+| `PUBLIC_SITE_URL` | `https://store.danieltarazona.com` |
+| `PUBLIC_MEDUSA_BACKEND_URL` | `https://api.danieltarazona.com` |
+| `PUBLIC_MEDUSA_PUBLISHABLE_KEY` | `pk_xxx...` |
+
+#### Store Frontend (Preview)
+
+| Variable | Value |
+|----------|-------|
+| `PUBLIC_SITE_URL` | `https://xxx.danieltarazona-store.pages.dev` |
+| `PUBLIC_MEDUSA_BACKEND_URL` | `https://api.danieltarazona.com` |
+| `PUBLIC_MEDUSA_PUBLISHABLE_KEY` | `pk_xxx...` |
+
+---
+
+### Security Best Practices
+
+#### Environment Variable Categories
+
+| Category | Prefix | Exposure | Examples |
+|----------|--------|----------|----------|
+| **Public** | `PUBLIC_` | Client-side safe | `PUBLIC_SITE_URL`, `PUBLIC_STRIPE_KEY` |
+| **Private** | None | Server-side only | `DATABASE_URL`, `STRIPE_API_KEY` |
+| **Service Role** | `*_SERVICE_ROLE_*` | Never expose | `SUPABASE_SERVICE_ROLE_KEY` |
+
+#### Generation Commands
+
+```bash
+# Generate secure secrets
+openssl rand -hex 32    # 32-byte hex string (64 chars)
+openssl rand -hex 64    # 64-byte hex string (128 chars)
+openssl rand -base64 32 # Base64 encoded 32 bytes
+openssl rand -base64 48 # Base64 encoded 48 bytes
+
+# Generate UUID
+uuidgen | tr '[:upper:]' '[:lower:]'
+
+# Generate JWT secret for Medusa
+echo "JWT_SECRET=$(openssl rand -hex 64)"
+echo "COOKIE_SECRET=$(openssl rand -hex 64)"
+```
+
+#### File Permissions
+
+```bash
+# Secure .env files (owner read/write only)
+chmod 600 .env
+chmod 600 .env.local
+chmod 600 .env.production
+
+# Verify permissions
+ls -la .env*
+```
+
+#### .gitignore Configuration
+
+Ensure all `.env` files are excluded from version control:
+
+```gitignore
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+
+# Exception: example files can be committed
+!.env.example
+```
+
+---
+
+### Quick Reference: All Variables by Service
+
+| Service | Total Variables | Required | Optional |
+|---------|-----------------|----------|----------|
+| Astro Portfolio | 10 | 4 | 6 |
+| Astro Storefront | 11 | 4 | 7 |
+| Medusa Backend | 25 | 9 | 16 |
+| Deno Functions | 13 | 4 | 9 |
+| Cloudflare Workers | 8 | 2 | 6 |
+| Nhost | 10 | 5 | 5 |
+| Supabase | 5 | 4 | 1 |
+| GitHub Actions | 10 | 6 | 4 |
+| Coolify | 20 | 10 | 10 |
+| Cloudflare Pages | 6 | 3 | 3 |
+
+**Total Unique Variables: ~80+**
+
+---
+
+*This environment variables reference is part of the ROADMAP.md documentation. Keep this section updated as new services or configuration options are added to the project.*
+
+---
+
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*
