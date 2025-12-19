@@ -2055,6 +2055,629 @@ ORDER BY pg_total_relation_size(schemaname || '.' || tablename) DESC;
 | 3.12 | Create Edge Functions | [ ] |
 | 3.13 | Configure backup strategy | [ ] |
 
+### Nhost Alternative BaaS Option
+
+Nhost is an open-source alternative to Supabase that provides a complete backend-as-a-service platform with PostgreSQL, Hasura GraphQL, authentication, storage, and serverless functions. This section documents Nhost as an alternative for projects that prefer a GraphQL-first approach.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           NHOST ARCHITECTURE                                     │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                            NHOST CLOUD                                   │   │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐  │   │
+│  │  │   PostgreSQL    │  │     Hasura      │  │     Auth Service        │  │   │
+│  │  │   Database      │  │   GraphQL API   │  │   (JWT-based Auth)      │  │   │
+│  │  │   (1GB Free)    │  │   (Auto-gen)    │  │   (Social + Email)      │  │   │
+│  │  └────────┬────────┘  └────────┬────────┘  └─────────────────────────┘  │   │
+│  │           │                    │                                         │   │
+│  │           └─────────┬──────────┘                                         │   │
+│  │                     │                                                    │   │
+│  │  ┌─────────────────┴─────────────────┐  ┌─────────────────────────────┐ │   │
+│  │  │         GraphQL Endpoint          │  │     Serverless Functions    │ │   │
+│  │  │  https://<subdomain>.nhost.run    │  │   (Node.js/TypeScript)      │ │   │
+│  │  └───────────────────────────────────┘  └─────────────────────────────┘ │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+│                              │                                                   │
+│                              │ GraphQL/REST                                      │
+│                              ▼                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                         CLIENT APPLICATIONS                              │   │
+│  │  ┌─────────────────────┐              ┌─────────────────────┐           │   │
+│  │  │   Astro Portfolio   │              │   Astro Storefront  │           │   │
+│  │  │   - Contact Form    │              │   - Analytics       │           │   │
+│  │  │   - Newsletter      │              │   - User Prefs      │           │   │
+│  │  └─────────────────────┘              └─────────────────────┘           │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Why Consider Nhost?
+
+| Feature | Benefit |
+|---------|---------|
+| **GraphQL-First** | Hasura auto-generates GraphQL API from PostgreSQL schema |
+| **Open Source** | Fully open-source stack, can self-host entire platform |
+| **Local Development** | Complete local development environment with Docker |
+| **Hasura Console** | Visual database management and API explorer |
+| **Built-in Auth** | JWT-based authentication with social providers |
+| **Storage** | S3-compatible storage with image transformations |
+
+#### Nhost Free Tier Limits
+
+| Resource | Free Tier Limit | Notes |
+|----------|-----------------|-------|
+| **Database Size** | 1 GB | PostgreSQL storage limit |
+| **Compute** | Shared CPU | Limited serverless compute |
+| **Storage** | 1 GB | File storage |
+| **Bandwidth** | 5 GB/month | Data transfer |
+| **Functions** | 128 MB memory | Serverless function limits |
+| **Projects** | 1 project | Free tier limitation |
+
+#### Nhost CLI Installation
+
+- [ ] **Task 3.14**: Install Nhost CLI
+  ```bash
+  # Install via npm (recommended)
+  npm install -g nhost
+
+  # Verify installation
+  nhost --version
+  # nhost version x.x.x
+
+  # Alternative: Install via Homebrew (macOS)
+  brew install nhost/tap/cli
+
+  # Alternative: Install via curl
+  curl -L https://raw.githubusercontent.com/nhost/cli/main/get.sh | bash
+
+  # Alternative: Download binary directly
+  # Visit: https://github.com/nhost/cli/releases
+  ```
+
+- [ ] **Task 3.15**: Authenticate with Nhost
+  ```bash
+  # Login to Nhost (opens browser for OAuth)
+  nhost login
+
+  # Verify authentication
+  nhost whoami
+
+  # List available projects
+  nhost list
+  ```
+
+#### Nhost Project Creation
+
+- [ ] **Task 3.16**: Create a new Nhost project
+
+  **Via Dashboard (Recommended for first time):**
+  1. Navigate to [app.nhost.io](https://app.nhost.io)
+  2. Click "New Project"
+  3. Configure project settings:
+     - **Project name**: `danieltarazona-portfolio`
+     - **Region**: Choose closest to target audience
+       - `eu-central-1` (Frankfurt) - Europe
+       - `us-east-1` (N. Virginia) - US East
+       - `ap-south-1` (Mumbai) - Asia
+     - **Plan**: Free tier
+  4. Wait for project provisioning (~3-5 minutes)
+
+  **Via CLI:**
+  ```bash
+  # Initialize Nhost project in current directory
+  nhost init
+
+  # This creates the following structure:
+  # nhost/
+  # ├── config.yaml       # Nhost configuration
+  # ├── metadata/         # Hasura metadata
+  # ├── migrations/       # Database migrations
+  # └── seeds/            # Seed data
+
+  # Link to existing cloud project
+  nhost link
+
+  # Select project from list and link
+  ```
+
+#### Local Development Setup
+
+- [ ] **Task 3.17**: Initialize and run local Nhost development environment
+  ```bash
+  # Initialize Nhost in project directory
+  cd danieltarazona-portfolio
+  nhost init
+
+  # Start local Nhost stack (requires Docker)
+  nhost up
+
+  # Output will show local URLs:
+  # ┌─────────────────────────────────────────────────────────────────────┐
+  # │ Nhost development environment started.                              │
+  # ├─────────────────────────────────────────────────────────────────────┤
+  # │ GraphQL:    http://localhost:1337/v1/graphql                       │
+  # │ Auth:       http://localhost:1337/v1/auth                          │
+  # │ Storage:    http://localhost:1337/v1/storage                       │
+  # │ Functions:  http://localhost:1337/v1/functions                     │
+  # │ Dashboard:  http://localhost:1337                                  │
+  # │ Postgres:   postgres://postgres:postgres@localhost:5432/postgres   │
+  # │ Hasura:     http://localhost:8080 (console)                        │
+  # └─────────────────────────────────────────────────────────────────────┘
+
+  # Stop local development
+  nhost down
+
+  # Stop and remove all data
+  nhost down --volumes
+  ```
+
+  **Local Configuration (`nhost/config.yaml`):**
+  ```yaml
+  # nhost/config.yaml
+  [global]
+  [[global.environment]]
+  name = "HASURA_GRAPHQL_ADMIN_SECRET"
+  value = "nhost-admin-secret"
+
+  [hasura]
+  version = "v2.36.0-ce"
+  adminSecret = "nhost-admin-secret"
+  webhookSecret = "nhost-webhook-secret"
+
+  [hasura.settings]
+  enableConsole = true
+  enableRemoteSchemaPermissions = false
+  devMode = true
+
+  [auth]
+  version = "0.24.1"
+
+  [auth.method.emailPassword]
+  emailVerificationRequired = false
+  hibpEnabled = false
+
+  [auth.method.anonymous]
+  enabled = false
+
+  [postgres]
+  version = "14.6-20230705-2"
+
+  [storage]
+  version = "0.6.0"
+  ```
+
+#### Database Schema with Hasura Migrations
+
+- [ ] **Task 3.18**: Create database schema using Hasura migrations
+  ```bash
+  # Create a new migration
+  nhost hasura migrate create create_portfolio_tables --database-name default
+
+  # This creates:
+  # nhost/migrations/default/<timestamp>_create_portfolio_tables/up.sql
+  # nhost/migrations/default/<timestamp>_create_portfolio_tables/down.sql
+  ```
+
+  **Migration file (`nhost/migrations/default/<timestamp>_create_portfolio_tables/up.sql`):**
+  ```sql
+  -- Contact Form Submissions Table
+  CREATE TABLE IF NOT EXISTS public.contact_submissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    subject VARCHAR(500),
+    message TEXT NOT NULL,
+    ip_address INET,
+    user_agent TEXT,
+    referrer TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    read_at TIMESTAMPTZ,
+    replied_at TIMESTAMPTZ,
+    archived BOOLEAN DEFAULT FALSE
+  );
+
+  -- Newsletter Signups Table
+  CREATE TABLE IF NOT EXISTS public.newsletter_signups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255),
+    source VARCHAR(100),
+    confirmed BOOLEAN DEFAULT FALSE,
+    confirmation_token UUID DEFAULT gen_random_uuid(),
+    confirmed_at TIMESTAMPTZ,
+    unsubscribed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
+  -- Analytics Events Table
+  CREATE TABLE IF NOT EXISTS public.analytics_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_type VARCHAR(100) NOT NULL,
+    page_path VARCHAR(500),
+    referrer TEXT,
+    user_agent TEXT,
+    ip_hash VARCHAR(64),
+    session_id VARCHAR(100),
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
+  -- Create indexes
+  CREATE INDEX idx_contact_created ON public.contact_submissions(created_at DESC);
+  CREATE INDEX idx_newsletter_email ON public.newsletter_signups(email);
+  CREATE INDEX idx_analytics_event ON public.analytics_events(event_type, created_at DESC);
+  ```
+
+  **Rollback migration (`nhost/migrations/default/<timestamp>_create_portfolio_tables/down.sql`):**
+  ```sql
+  DROP TABLE IF EXISTS public.analytics_events;
+  DROP TABLE IF EXISTS public.newsletter_signups;
+  DROP TABLE IF EXISTS public.contact_submissions;
+  ```
+
+  ```bash
+  # Apply migrations locally
+  nhost hasura migrate apply --database-name default
+
+  # Check migration status
+  nhost hasura migrate status --database-name default
+
+  # Push migrations to production
+  nhost hasura migrate apply --database-name default --endpoint https://<subdomain>.hasura.nhost.run --admin-secret <admin-secret>
+  ```
+
+#### Hasura Permissions & Metadata
+
+- [ ] **Task 3.19**: Configure Hasura permissions for public access
+  ```bash
+  # Export current metadata (if using Hasura Console)
+  nhost hasura metadata export
+
+  # Apply metadata from files
+  nhost hasura metadata apply
+  ```
+
+  **Table permissions (`nhost/metadata/databases/default/tables/public_contact_submissions.yaml`):**
+  ```yaml
+  table:
+    name: contact_submissions
+    schema: public
+  insert_permissions:
+    - role: public
+      permission:
+        check: {}
+        columns:
+          - name
+          - email
+          - subject
+          - message
+  select_permissions:
+    - role: admin
+      permission:
+        columns: "*"
+        filter: {}
+  ```
+
+#### Nhost Client Configuration
+
+- [ ] **Task 3.20**: Install and configure Nhost JavaScript client
+  ```bash
+  # Install Nhost client packages
+  npm install @nhost/nhost-js
+  # Or for React:
+  npm install @nhost/react
+  ```
+
+  **Client configuration (`src/lib/nhost.ts`):**
+  ```typescript
+  import { NhostClient } from '@nhost/nhost-js';
+
+  // Environment variables
+  const nhostSubdomain = import.meta.env.NHOST_SUBDOMAIN || import.meta.env.PUBLIC_NHOST_SUBDOMAIN;
+  const nhostRegion = import.meta.env.NHOST_REGION || import.meta.env.PUBLIC_NHOST_REGION;
+
+  if (!nhostSubdomain || !nhostRegion) {
+    throw new Error('Missing Nhost environment variables');
+  }
+
+  // Create Nhost client
+  export const nhost = new NhostClient({
+    subdomain: nhostSubdomain,
+    region: nhostRegion,
+  });
+
+  // For local development
+  export const nhostLocal = new NhostClient({
+    subdomain: 'local',
+    region: '',
+    backendUrl: 'http://localhost:1337',
+  });
+  ```
+
+  **Example: GraphQL query for contact form submission:**
+  ```typescript
+  // src/lib/contact-nhost.ts
+  import { nhost } from './nhost';
+
+  interface ContactFormData {
+    name: string;
+    email: string;
+    subject?: string;
+    message: string;
+  }
+
+  const INSERT_CONTACT_MUTATION = `
+    mutation InsertContact($object: contact_submissions_insert_input!) {
+      insert_contact_submissions_one(object: $object) {
+        id
+        created_at
+      }
+    }
+  `;
+
+  export async function submitContactForm(data: ContactFormData) {
+    const { data: result, error } = await nhost.graphql.request(
+      INSERT_CONTACT_MUTATION,
+      {
+        object: {
+          name: data.name,
+          email: data.email,
+          subject: data.subject,
+          message: data.message,
+        },
+      }
+    );
+
+    if (error) {
+      console.error('Error submitting contact form:', error);
+      throw new Error('Failed to submit contact form');
+    }
+
+    return { success: true, id: result.insert_contact_submissions_one.id };
+  }
+  ```
+
+#### Nhost Serverless Functions
+
+- [ ] **Task 3.21**: Create serverless function for form processing
+  ```bash
+  # Create functions directory
+  mkdir -p nhost/functions
+
+  # Create a new function
+  touch nhost/functions/contact-handler.ts
+  ```
+
+  **Function file (`nhost/functions/contact-handler.ts`):**
+  ```typescript
+  import { Request, Response } from 'express';
+
+  interface ContactPayload {
+    name: string;
+    email: string;
+    subject?: string;
+    message: string;
+  }
+
+  export default async (req: Request, res: Response) => {
+    // Only allow POST requests
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    try {
+      const payload: ContactPayload = req.body;
+
+      // Validate required fields
+      if (!payload.name || !payload.email || !payload.message) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(payload.email)) {
+        return res.status(400).json({ error: 'Invalid email format' });
+      }
+
+      // Insert via GraphQL (using admin secret for server-side)
+      const HASURA_ENDPOINT = process.env.NHOST_HASURA_URL + '/v1/graphql';
+      const HASURA_ADMIN_SECRET = process.env.NHOST_ADMIN_SECRET;
+
+      const response = await fetch(HASURA_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hasura-admin-secret': HASURA_ADMIN_SECRET || '',
+        },
+        body: JSON.stringify({
+          query: `
+            mutation InsertContact($object: contact_submissions_insert_input!) {
+              insert_contact_submissions_one(object: $object) {
+                id
+              }
+            }
+          `,
+          variables: {
+            object: {
+              name: payload.name,
+              email: payload.email,
+              subject: payload.subject,
+              message: payload.message,
+              ip_address: req.headers['x-forwarded-for'] || req.ip,
+              user_agent: req.headers['user-agent'],
+              referrer: req.headers['referer'],
+            },
+          },
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.errors) {
+        throw new Error(result.errors[0].message);
+      }
+
+      // TODO: Send email notification
+
+      return res.status(200).json({
+        success: true,
+        message: 'Form submitted successfully',
+        id: result.data.insert_contact_submissions_one.id,
+      });
+    } catch (error) {
+      console.error('Error:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+  ```
+
+  ```bash
+  # Deploy functions to Nhost
+  nhost deploy
+
+  # Test function locally
+  curl -X POST http://localhost:1337/v1/functions/contact-handler \
+    -H "Content-Type: application/json" \
+    -d '{"name":"Test","email":"test@example.com","message":"Hello"}'
+  ```
+
+#### Environment Variables for Nhost
+
+```bash
+# .env file for Nhost configuration
+# Nhost Cloud Configuration
+NHOST_SUBDOMAIN=your-project-subdomain
+NHOST_REGION=eu-central-1
+NHOST_ADMIN_SECRET=your-admin-secret
+
+# Public keys (safe for client-side)
+PUBLIC_NHOST_SUBDOMAIN=your-project-subdomain
+PUBLIC_NHOST_REGION=eu-central-1
+
+# Local Development
+NHOST_HASURA_URL=http://localhost:1337
+NHOST_GRAPHQL_URL=http://localhost:1337/v1/graphql
+NHOST_AUTH_URL=http://localhost:1337/v1/auth
+NHOST_STORAGE_URL=http://localhost:1337/v1/storage
+NHOST_FUNCTIONS_URL=http://localhost:1337/v1/functions
+```
+
+### Supabase vs Nhost Comparison
+
+This comparison helps determine which BaaS platform is better suited for the danieltarazona.com portfolio and store project.
+
+#### Feature Comparison
+
+| Feature | Supabase | Nhost | Winner |
+|---------|----------|-------|--------|
+| **Database** | PostgreSQL | PostgreSQL | Tie |
+| **API Style** | REST + PostgREST | GraphQL (Hasura) | Depends on preference |
+| **Free Tier Storage** | 500 MB | 1 GB | Nhost |
+| **Free Tier Bandwidth** | 2 GB/month | 5 GB/month | Nhost |
+| **Authentication** | GoTrue (JWT) | Hasura Auth (JWT) | Tie |
+| **File Storage** | S3-compatible | S3-compatible | Tie |
+| **Edge Functions** | Deno-based | Node.js/TypeScript | Supabase |
+| **Realtime** | Built-in WebSocket | Hasura Subscriptions | Tie |
+| **Local Development** | Full Docker stack | Full Docker stack | Tie |
+| **Open Source** | Yes (Apache 2.0) | Yes (MIT) | Tie |
+| **Self-Hosting** | Complex setup | Docker Compose ready | Nhost |
+| **Community Size** | Larger | Smaller | Supabase |
+| **Documentation** | Excellent | Good | Supabase |
+| **CLI Maturity** | Mature | Good | Supabase |
+
+#### API Style Comparison
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           API STYLE COMPARISON                                   │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  SUPABASE (REST + PostgREST):                                                   │
+│  ┌────────────────────────────────────────────────────────────────────────────┐ │
+│  │  // Simple and familiar REST-style queries                                  │ │
+│  │  const { data, error } = await supabase                                    │ │
+│  │    .from('contact_submissions')                                            │ │
+│  │    .select('*')                                                            │ │
+│  │    .order('created_at', { ascending: false })                              │ │
+│  │    .limit(10);                                                             │ │
+│  │                                                                             │ │
+│  │  // Easy inserts                                                           │ │
+│  │  const { error } = await supabase                                          │ │
+│  │    .from('contact_submissions')                                            │ │
+│  │    .insert({ name, email, message });                                      │ │
+│  └────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                  │
+│  NHOST (GraphQL via Hasura):                                                    │
+│  ┌────────────────────────────────────────────────────────────────────────────┐ │
+│  │  // Powerful GraphQL with type safety                                       │ │
+│  │  const { data, error } = await nhost.graphql.request(`                     │ │
+│  │    query GetContacts {                                                     │ │
+│  │      contact_submissions(                                                  │ │
+│  │        order_by: { created_at: desc },                                     │ │
+│  │        limit: 10                                                           │ │
+│  │      ) {                                                                   │ │
+│  │        id name email message created_at                                    │ │
+│  │      }                                                                     │ │
+│  │    }                                                                       │ │
+│  │  `);                                                                       │ │
+│  │                                                                             │ │
+│  │  // Mutations with variables                                               │ │
+│  │  const { data, error } = await nhost.graphql.request(                      │ │
+│  │    INSERT_CONTACT_MUTATION,                                                │ │
+│  │    { object: { name, email, message } }                                    │ │
+│  │  );                                                                        │ │
+│  └────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Use Case Recommendations
+
+| Use Case | Recommended Platform | Reason |
+|----------|---------------------|--------|
+| **Simple CRUD operations** | Supabase | REST API is more familiar, less boilerplate |
+| **Complex nested queries** | Nhost | GraphQL excels at fetching related data |
+| **Real-time updates** | Tie | Both support WebSocket subscriptions |
+| **Form submissions** | Supabase | Simpler RLS policies, easier setup |
+| **Admin dashboards** | Nhost | Hasura Console is excellent for data exploration |
+| **Serverless functions** | Supabase | Deno-based functions with better edge deployment |
+| **Self-hosting** | Nhost | More mature self-hosting documentation |
+| **Team collaboration** | Supabase | Better dashboard UI and team features |
+
+#### Recommendation for This Project
+
+For the **danieltarazona.com portfolio and store** project, **Supabase is recommended** as the primary choice:
+
+**Reasons:**
+1. **Simpler Learning Curve**: REST API is more familiar for developers without GraphQL experience
+2. **Better Documentation**: More comprehensive guides and examples
+3. **Edge Functions**: Deno-based functions integrate well with Cloudflare Workers
+4. **Contact Form Use Case**: Simple INSERT operations don't require GraphQL complexity
+5. **Larger Community**: More Stack Overflow answers and community resources
+6. **Free Tier**: 500MB is sufficient for portfolio + contact forms
+
+**When to Choose Nhost Instead:**
+- If you have existing GraphQL experience
+- If you need the Hasura Console for complex data exploration
+- If you plan to self-host the entire stack
+- If you need more complex relational queries
+
+#### Nhost Tasks Summary
+
+| Task | Description | Status |
+|------|-------------|--------|
+| 3.14 | Install Nhost CLI | [ ] |
+| 3.15 | Authenticate with Nhost | [ ] |
+| 3.16 | Create Nhost project | [ ] |
+| 3.17 | Initialize local development | [ ] |
+| 3.18 | Create database schema | [ ] |
+| 3.19 | Configure Hasura permissions | [ ] |
+| 3.20 | Configure Nhost client | [ ] |
+| 3.21 | Create serverless functions | [ ] |
+
 ---
 
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*

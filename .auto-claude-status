@@ -3,7 +3,7 @@
   "spec": "001-create-static-website-roadmap-with-portfolio-store",
   "state": "building",
   "subtasks": {
-    "completed": 6,
+    "completed": 7,
     "total": 25,
     "in_progress": 1,
     "failed": 0
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 8,
-    "started_at": "2025-12-19T11:44:35.806326"
+    "number": 1,
+    "started_at": "2025-12-19T12:14:18.577923"
   },
-  "last_update": "2025-12-19T12:01:18.452674"
+  "last_update": "2025-12-19T12:14:18.583793"
 }
