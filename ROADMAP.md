@@ -58,6 +58,105 @@ This roadmap outlines the complete setup and configuration of a modern JAMstack 
                                               └───────────────────────────────┘
 ```
 
+### Service Connection Flow
+
+The following diagram illustrates how data flows between services in the architecture:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                           SERVICE CONNECTION ARCHITECTURE                                │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+                              ┌─────────────────┐
+                              │   End Users     │
+                              │   (Browsers)    │
+                              └────────┬────────┘
+                                       │ HTTPS Requests
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              CLOUDFLARE CDN LAYER                                        │
+│  ┌───────────────────────────────────────────────────────────────────────────────────┐  │
+│  │  • Global Edge Network (300+ PoPs)                                                 │  │
+│  │  • SSL/TLS Termination                                                             │  │
+│  │  • DDoS Protection & WAF                                                           │  │
+│  │  • Asset Caching & Optimization                                                    │  │
+│  └───────────────────────────────────────────────────────────────────────────────────┘  │
+│                    │                                           │                         │
+│          Static Assets                              Dynamic API Requests                 │
+│                    ▼                                           ▼                         │
+│     ┌──────────────────────────┐                ┌──────────────────────────┐            │
+│     │    Cloudflare Pages      │                │    Cloudflare Tunnel     │            │
+│     │  (Edge Static Hosting)   │                │   (Zero Trust Ingress)   │            │
+│     └──────────────────────────┘                └────────────┬─────────────┘            │
+└─────────────────────────────────────────────────────────────┼───────────────────────────┘
+                    ▲                                          │
+                    │                                          │ Secure Tunnel
+      ┌─────────────┴─────────────┐                           │ (No Open Ports)
+      │                           │                            ▼
+┌─────┴─────┐             ┌───────┴───────┐     ┌─────────────────────────────────────────┐
+│  ASTRO    │             │    ASTRO      │     │              VPS (COOLIFY)              │
+│ PORTFOLIO │             │  STOREFRONT   │     │  ┌─────────────────────────────────┐    │
+│   SITE    │             │               │     │  │         MEDUSA 2.0 API          │    │
+├───────────┤             ├───────────────┤     │  │  ┌───────────────────────────┐  │    │
+│ • Gallery │             │ • Product     │────▶│  │  │   REST API Endpoints      │  │    │
+│ • About   │             │   Catalog     │     │  │  │   /store/* (storefront)   │  │    │
+│ • Contact │             │ • Cart        │     │  │  │   /admin/* (dashboard)    │  │    │
+│ • Blog    │             │ • Checkout    │     │  │  └───────────────────────────┘  │    │
+└───────────┘             └───────────────┘     │  │              │                  │    │
+      │                                         │  │              │ Database Queries │    │
+      │ Contact Form                            │  │              ▼                  │    │
+      │ Submissions                             │  │  ┌───────────────────────────┐  │    │
+      │                                         │  │  │    Medusa ORM Layer       │  │    │
+      ▼                                         │  │  │    (MikroORM/TypeORM)     │  │    │
+┌─────────────────────────────────────┐         │  │  └───────────────────────────┘  │    │
+│         SUPABASE (MANAGED)          │         │  └─────────────────────────────────┘    │
+│  ┌───────────────────────────────┐  │         │                 │                       │
+│  │   PostgreSQL Database         │  │         │                 │ Connection String     │
+│  │   • contact_submissions       │  │         │                 │ (DATABASE_URL)        │
+│  │   • newsletter_signups        │  │         │                 ▼                       │
+│  │   • analytics_events          │  │         │  ┌─────────────────────────────────┐    │
+│  └───────────────────────────────┘  │         │  │   PostgreSQL (Local/Supabase)  │    │
+│  ┌───────────────────────────────┐  │         │  │   • products                   │    │
+│  │   Supabase Edge Functions     │  │         │  │   • orders                     │    │
+│  │   • Form validation           │  │         │  │   • customers                  │    │
+│  │   • Email notifications       │  │         │  │   • inventory                  │    │
+│  └───────────────────────────────┘  │         │  │   • payments                   │    │
+└─────────────────────────────────────┘         │  └─────────────────────────────────┘    │
+                                                └─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              DATA FLOW SUMMARY                                           │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                          │
+│  PORTFOLIO SITE FLOW:                                                                   │
+│  User ──▶ Cloudflare CDN ──▶ Cloudflare Pages ──▶ Static HTML/CSS/JS                   │
+│                                       │                                                  │
+│                                       └──▶ Contact Form ──▶ Supabase PostgreSQL         │
+│                                                                                          │
+│  E-COMMERCE STORE FLOW:                                                                 │
+│  User ──▶ Cloudflare CDN ──▶ Astro Storefront ──▶ Medusa API ──▶ PostgreSQL            │
+│                    │                                    │                                │
+│                    └──▶ Cached Assets                   └──▶ Orders, Products, Cart     │
+│                                                                                          │
+│  ADMIN DASHBOARD FLOW:                                                                  │
+│  Admin ──▶ Cloudflare Tunnel ──▶ Medusa Admin UI ──▶ Medusa API ──▶ PostgreSQL         │
+│                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              CONNECTION PROTOCOLS                                        │
+├──────────────────┬──────────────────────────────────────────────────────────────────────┤
+│ Connection       │ Protocol / Port                                                      │
+├──────────────────┼──────────────────────────────────────────────────────────────────────┤
+│ User → CDN       │ HTTPS (443) with TLS 1.3                                             │
+│ CDN → Pages      │ Internal Cloudflare routing                                          │
+│ CDN → Tunnel     │ Cloudflare Tunnel (outbound only, no open ports)                    │
+│ Tunnel → Medusa  │ HTTP (9000) internal to VPS                                          │
+│ Medusa → DB      │ PostgreSQL (5432) via connection pooling                             │
+│ Astro → Supabase │ HTTPS REST API + WebSocket for Realtime                             │
+└──────────────────┴──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Key Features
 
 - **Portfolio Site** (`danieltarazona.com`)
