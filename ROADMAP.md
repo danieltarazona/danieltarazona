@@ -14800,6 +14800,901 @@ async function logSecurityEvent(event: SecurityEvent): Promise<void> {
 
 ---
 
+### Appendix B: Database Backup and Migration Strategies
+
+This section documents comprehensive strategies for PostgreSQL backup automation, Medusa 2.0 schema migrations, and disaster recovery procedures to ensure business continuity and data protection.
+
+#### Database Backup Strategy Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         DATABASE BACKUP ARCHITECTURE                              │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                               PRODUCTION DATABASES                                │
+│                                                                                   │
+│  ┌─────────────────────────┐           ┌─────────────────────────┐              │
+│  │    Medusa PostgreSQL    │           │   Supabase PostgreSQL   │              │
+│  │   (Coolify/VPS hosted)  │           │    (Portfolio data)     │              │
+│  │                         │           │                         │              │
+│  │  • Products (100 max)   │           │  • contact_submissions  │              │
+│  │  • Orders               │           │  • newsletter_signups   │              │
+│  │  • Customers            │           │  • analytics_events     │              │
+│  │  • Inventory            │           │                         │              │
+│  │  • Payments             │           │                         │              │
+│  └───────────┬─────────────┘           └───────────┬─────────────┘              │
+│              │                                     │                             │
+└──────────────┼─────────────────────────────────────┼─────────────────────────────┘
+               │                                     │
+               ▼                                     ▼
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                              BACKUP DESTINATIONS                                  │
+│                                                                                   │
+│  ┌─────────────────────────┐           ┌─────────────────────────┐              │
+│  │   Cloudflare R2         │           │   Supabase Automatic    │              │
+│  │   (S3-compatible)       │           │   (7-day retention)     │              │
+│  │                         │           │                         │              │
+│  │  • Daily full backups   │           │  • Point-in-time        │              │
+│  │  • 30-day retention     │           │    recovery (Pro)       │              │
+│  │  • Encrypted at rest    │           │  • Daily snapshots      │              │
+│  └─────────────────────────┘           └─────────────────────────┘              │
+│                                                                                   │
+│  ┌─────────────────────────┐           ┌─────────────────────────┐              │
+│  │   Local VPS Backups     │           │   AWS S3 / Backblaze B2 │              │
+│  │   (7-day retention)     │           │   (Long-term archive)   │              │
+│  │                         │           │                         │              │
+│  │  • Quick restore        │           │  • 90-day+ retention    │              │
+│  │  • Disk space limited   │           │  • Compliance storage   │              │
+│  └─────────────────────────┘           └─────────────────────────┘              │
+│                                                                                   │
+└──────────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                              BACKUP SCHEDULE                                      │
+├──────────────────┬───────────────────────────────────────────────────────────────┤
+│ Backup Type      │ Schedule / Retention                                          │
+├──────────────────┼───────────────────────────────────────────────────────────────┤
+│ Full Database    │ Daily at 3 AM UTC, 30-day retention                          │
+│ Transaction Logs │ Every 15 minutes (WAL archiving)                             │
+│ Schema Only      │ Weekly, stored in Git                                         │
+│ Local Snapshot   │ Daily at 2 AM UTC, 7-day retention                           │
+│ Off-site Archive │ Weekly on Sunday, 90-day retention                           │
+└──────────────────┴───────────────────────────────────────────────────────────────┘
+```
+
+#### Task 7.4.1: PostgreSQL Backup Automation for Medusa
+
+- [ ] **Task 7.4.1**: Configure automated PostgreSQL backups for Medusa database
+
+  **Backup Script (`scripts/backup-medusa-db.sh`):**
+  ```bash
+  #!/bin/bash
+  # ===========================================
+  # MEDUSA POSTGRESQL BACKUP SCRIPT
+  # ===========================================
+  # Schedule: Daily at 3 AM UTC via cron
+  # Retention: 30 days local, 90 days R2
+
+  set -euo pipefail
+
+  # Configuration
+  BACKUP_DIR="/data/coolify/backups/medusa"
+  R2_BUCKET="danieltarazona-backups"
+  R2_ENDPOINT="https://<account-id>.r2.cloudflarestorage.com"
+  DATABASE_CONTAINER="coolify-medusa-db"  # Update with actual container name
+  DB_USER="medusa_user"
+  DB_NAME="medusa"
+  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+  LOG_FILE="/var/log/medusa-backup.log"
+
+  # Logging function
+  log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+  }
+
+  # Error handling
+  cleanup() {
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+      log "ERROR: Backup failed with exit code $exit_code"
+      # Send alert (optional)
+      # curl -X POST "$DISCORD_WEBHOOK_URL" -H "Content-Type: application/json" \
+      #   -d '{"content":"⚠️ Medusa database backup failed!"}'
+    fi
+  }
+  trap cleanup EXIT
+
+  log "Starting Medusa database backup..."
+
+  # Create backup directory
+  mkdir -p "$BACKUP_DIR"
+
+  # Full database backup with pg_dump
+  log "Creating full database dump..."
+  docker exec "$DATABASE_CONTAINER" pg_dump \
+    -U "$DB_USER" \
+    -d "$DB_NAME" \
+    -F custom \
+    -Z 9 \
+    --verbose \
+    > "$BACKUP_DIR/medusa_full_$TIMESTAMP.dump" 2>> "$LOG_FILE"
+
+  # Schema-only backup (for version control)
+  log "Creating schema-only dump..."
+  docker exec "$DATABASE_CONTAINER" pg_dump \
+    -U "$DB_USER" \
+    -d "$DB_NAME" \
+    --schema-only \
+    > "$BACKUP_DIR/medusa_schema_$TIMESTAMP.sql"
+
+  # Compress schema backup
+  gzip "$BACKUP_DIR/medusa_schema_$TIMESTAMP.sql"
+
+  # Calculate backup size
+  BACKUP_SIZE=$(du -h "$BACKUP_DIR/medusa_full_$TIMESTAMP.dump" | cut -f1)
+  log "Backup size: $BACKUP_SIZE"
+
+  # Upload to Cloudflare R2
+  log "Uploading to Cloudflare R2..."
+  aws s3 cp "$BACKUP_DIR/medusa_full_$TIMESTAMP.dump" \
+    "s3://$R2_BUCKET/medusa/full/" \
+    --endpoint-url "$R2_ENDPOINT" \
+    --only-show-errors
+
+  aws s3 cp "$BACKUP_DIR/medusa_schema_$TIMESTAMP.sql.gz" \
+    "s3://$R2_BUCKET/medusa/schema/" \
+    --endpoint-url "$R2_ENDPOINT" \
+    --only-show-errors
+
+  # Clean up old local backups (keep 7 days)
+  log "Cleaning up old local backups..."
+  find "$BACKUP_DIR" -name "medusa_*.dump" -mtime +7 -delete
+  find "$BACKUP_DIR" -name "medusa_*.sql.gz" -mtime +7 -delete
+
+  # Clean up old R2 backups (keep 30 days for full, 90 days for schema)
+  log "Cleaning up old R2 backups..."
+  aws s3 ls "s3://$R2_BUCKET/medusa/full/" --endpoint-url "$R2_ENDPOINT" | \
+    while read -r line; do
+      createDate=$(echo "$line" | awk '{print $1" "$2}')
+      createDate=$(date -d "$createDate" +%s)
+      olderThan=$(date -d "-30 days" +%s)
+      if [[ $createDate -lt $olderThan ]]; then
+        fileName=$(echo "$line" | awk '{print $4}')
+        aws s3 rm "s3://$R2_BUCKET/medusa/full/$fileName" --endpoint-url "$R2_ENDPOINT"
+      fi
+    done
+
+  # Verify backup integrity
+  log "Verifying backup integrity..."
+  docker exec "$DATABASE_CONTAINER" pg_restore \
+    --list "$BACKUP_DIR/medusa_full_$TIMESTAMP.dump" > /dev/null 2>&1
+
+  if [ $? -eq 0 ]; then
+    log "✅ Backup verification successful"
+  else
+    log "❌ Backup verification failed!"
+    exit 1
+  fi
+
+  log "Backup completed successfully: medusa_full_$TIMESTAMP.dump"
+
+  # Optional: Send success notification
+  # curl -X POST "$DISCORD_WEBHOOK_URL" -H "Content-Type: application/json" \
+  #   -d "{\"content\":\"✅ Medusa database backup completed ($BACKUP_SIZE)\"}"
+  ```
+
+  **Cron configuration (`/etc/cron.d/medusa-backup`):**
+  ```bash
+  # Medusa database backup - Daily at 3 AM UTC
+  0 3 * * * root /data/coolify/scripts/backup-medusa-db.sh >> /var/log/medusa-backup.log 2>&1
+
+  # Schema backup for Git - Weekly on Sunday at 4 AM UTC
+  0 4 * * 0 root /data/coolify/scripts/backup-schema-to-git.sh >> /var/log/schema-backup.log 2>&1
+  ```
+
+#### Task 7.4.2: Supabase Backup Strategy
+
+- [ ] **Task 7.4.2**: Configure Supabase backup and export procedures
+
+  **Understanding Supabase Automatic Backups:**
+
+  | Plan | Backup Frequency | Retention | PITR | Download |
+  |------|-----------------|-----------|------|----------|
+  | Free | Daily | 7 days | No | No |
+  | Pro | Daily | 7 days | Yes (7 days) | Yes |
+  | Team | Daily | 14 days | Yes (14 days) | Yes |
+  | Enterprise | Custom | Custom | Yes | Yes |
+
+  **Manual Export Script (`scripts/backup-supabase.sh`):**
+  ```bash
+  #!/bin/bash
+  # ===========================================
+  # SUPABASE DATABASE EXPORT SCRIPT
+  # ===========================================
+  # For additional backup beyond Supabase's built-in backups
+
+  set -euo pipefail
+
+  BACKUP_DIR="./backups/supabase"
+  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+  # Load environment variables
+  source .env
+
+  mkdir -p "$BACKUP_DIR"
+
+  echo "Exporting Supabase schema..."
+  supabase db dump --schema-only > "$BACKUP_DIR/schema_$TIMESTAMP.sql"
+
+  echo "Exporting data (tables with RLS policies)..."
+  # Use DATABASE_POOLER_URL for better connection handling
+  pg_dump "$DATABASE_POOLER_URL" \
+    -t contact_submissions \
+    -t newsletter_signups \
+    -t analytics_events \
+    --data-only \
+    > "$BACKUP_DIR/data_$TIMESTAMP.sql"
+
+  # Compress exports
+  gzip "$BACKUP_DIR/schema_$TIMESTAMP.sql"
+  gzip "$BACKUP_DIR/data_$TIMESTAMP.sql"
+
+  echo "Export completed: $BACKUP_DIR/*_$TIMESTAMP.sql.gz"
+
+  # Upload to R2 (optional)
+  if [ -n "${R2_ENDPOINT:-}" ]; then
+    aws s3 cp "$BACKUP_DIR/schema_$TIMESTAMP.sql.gz" \
+      "s3://$R2_BUCKET/supabase/schema/" \
+      --endpoint-url "$R2_ENDPOINT"
+
+    aws s3 cp "$BACKUP_DIR/data_$TIMESTAMP.sql.gz" \
+      "s3://$R2_BUCKET/supabase/data/" \
+      --endpoint-url "$R2_ENDPOINT"
+  fi
+
+  # Cleanup (keep 30 days locally)
+  find "$BACKUP_DIR" -name "*.sql.gz" -mtime +30 -delete
+
+  echo "✅ Supabase backup completed"
+  ```
+
+  **TypeScript Export via API (`scripts/export-supabase-data.ts`):**
+  ```typescript
+  // Export Supabase data via API (for serverless environments)
+  import { createClient } from '@supabase/supabase-js';
+
+  const supabase = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  interface ExportConfig {
+    tables: string[];
+    outputDir: string;
+    format: 'json' | 'csv';
+  }
+
+  async function exportSupabaseData(config: ExportConfig): Promise<void> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
+    for (const table of config.tables) {
+      console.log(`Exporting table: ${table}`);
+
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error(`Error exporting ${table}:`, error);
+        continue;
+      }
+
+      const filename = `${config.outputDir}/${table}_${timestamp}.${config.format}`;
+
+      if (config.format === 'json') {
+        await Deno.writeTextFile(filename, JSON.stringify(data, null, 2));
+      } else {
+        // CSV conversion
+        const csv = convertToCSV(data);
+        await Deno.writeTextFile(filename, csv);
+      }
+
+      console.log(`✅ Exported ${data.length} rows to ${filename}`);
+    }
+  }
+
+  function convertToCSV(data: Record<string, unknown>[]): string {
+    if (data.length === 0) return '';
+
+    const headers = Object.keys(data[0]);
+    const rows = data.map(row =>
+      headers.map(h => JSON.stringify(row[h] ?? '')).join(',')
+    );
+
+    return [headers.join(','), ...rows].join('\n');
+  }
+
+  // Run export
+  await exportSupabaseData({
+    tables: ['contact_submissions', 'newsletter_signups', 'analytics_events'],
+    outputDir: './backups/supabase',
+    format: 'json'
+  });
+  ```
+
+#### Task 7.4.3: Medusa 2.0 Schema Migrations
+
+- [ ] **Task 7.4.3**: Document Medusa schema migration workflow
+
+  **Migration Commands Reference:**
+
+  | Command | Description | Use Case |
+  |---------|-------------|----------|
+  | `npx medusa db:setup` | Create DB + run all migrations | Initial setup |
+  | `npx medusa db:migrate` | Run pending migrations | After pulling new code |
+  | `npx medusa db:migrate --status` | Show migration status | Verify state |
+  | `npx medusa db:generate <name>` | Create new migration | Schema changes |
+  | `npx medusa db:rollback` | Revert last migration | Fix broken migration |
+
+  **Migration Workflow Diagram:**
+
+  ```
+  ┌─────────────────────────────────────────────────────────────────────────────┐
+  │                      MEDUSA SCHEMA MIGRATION WORKFLOW                        │
+  └─────────────────────────────────────────────────────────────────────────────┘
+
+  Development Environment:
+  ┌───────────────┐     ┌───────────────┐     ┌───────────────┐
+  │  Make Schema  │────▶│   Generate    │────▶│  Test in Dev  │
+  │   Changes     │     │  Migration    │     │  Environment  │
+  └───────────────┘     └───────────────┘     └───────────────┘
+         │                     │                      │
+         │                     ▼                      │
+         │         ┌───────────────────┐             │
+         │         │ migrations/       │             │
+         │         │ └── 20240115_xxx.ts│             │
+         │         └───────────────────┘             │
+         │                     │                      │
+         └─────────────────────┼──────────────────────┘
+                               │
+                               ▼
+                    ┌───────────────────┐
+                    │   Commit to Git   │
+                    │   Push to Repo    │
+                    └─────────┬─────────┘
+                              │
+                              ▼
+  Staging Environment:
+  ┌───────────────┐     ┌───────────────┐     ┌───────────────┐
+  │  Pull Changes │────▶│ Run Migrations│────▶│  QA Testing   │
+  │  from Git     │     │ (npx medusa   │     │               │
+  │               │     │  db:migrate)  │     │               │
+  └───────────────┘     └───────────────┘     └───────────────┘
+                              │
+                              ▼
+  Production Environment:
+  ┌───────────────┐     ┌───────────────┐     ┌───────────────┐
+  │  Backup DB    │────▶│ Run Migrations│────▶│ Verify &      │
+  │  First!       │     │ in Maintenance│     │ Monitor       │
+  │               │     │ Window        │     │               │
+  └───────────────┘     └───────────────┘     └───────────────┘
+  ```
+
+  **Creating Custom Migrations:**
+
+  ```typescript
+  // migrations/20240115120000_add_custom_product_fields.ts
+  import { Migration } from '@medusajs/framework/migrations';
+
+  export const AddCustomProductFields20240115120000 = Migration({
+    name: '20240115120000_add_custom_product_fields',
+
+    async up({ connection }): Promise<void> {
+      // Add custom fields to products
+      await connection.execute(`
+        ALTER TABLE product
+        ADD COLUMN IF NOT EXISTS artist_name VARCHAR(255),
+        ADD COLUMN IF NOT EXISTS art_medium VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS year_created INTEGER,
+        ADD COLUMN IF NOT EXISTS certificate_of_authenticity BOOLEAN DEFAULT false;
+      `);
+
+      // Create index for search
+      await connection.execute(`
+        CREATE INDEX IF NOT EXISTS idx_product_artist_name
+        ON product(artist_name);
+      `);
+
+      console.log('✅ Added custom product fields');
+    },
+
+    async down({ connection }): Promise<void> {
+      // Rollback changes
+      await connection.execute(`
+        DROP INDEX IF EXISTS idx_product_artist_name;
+
+        ALTER TABLE product
+        DROP COLUMN IF EXISTS artist_name,
+        DROP COLUMN IF EXISTS art_medium,
+        DROP COLUMN IF EXISTS year_created,
+        DROP COLUMN IF EXISTS certificate_of_authenticity;
+      `);
+
+      console.log('✅ Removed custom product fields');
+    }
+  });
+  ```
+
+  **Migration Best Practices:**
+
+  | Practice | Description | Example |
+  |----------|-------------|---------|
+  | **Always backup first** | Create backup before running migrations | `pg_dump > backup.sql && npx medusa db:migrate` |
+  | **Test in staging** | Never run untested migrations in production | Use staging environment |
+  | **Idempotent migrations** | Use `IF NOT EXISTS` / `IF EXISTS` | Prevents errors on re-run |
+  | **Small, focused changes** | One logical change per migration | Easier to debug and rollback |
+  | **Descriptive names** | Include date and description | `20240115_add_custom_fields` |
+  | **Document breaking changes** | Note any breaking changes | Add comments in migration file |
+
+  **Pre-Deployment Migration Checklist:**
+
+  ```bash
+  #!/bin/bash
+  # scripts/pre-deploy-migration-check.sh
+
+  set -e
+
+  echo "🔍 Pre-deployment migration checklist..."
+
+  # 1. Check migration status
+  echo "Checking migration status..."
+  npx medusa db:migrate --status
+
+  # 2. Verify backup exists
+  BACKUP_FILE="/data/coolify/backups/medusa/medusa_full_$(date +%Y%m%d)*.dump"
+  if ls $BACKUP_FILE 1> /dev/null 2>&1; then
+    echo "✅ Today's backup exists"
+  else
+    echo "❌ No backup found for today! Creating backup..."
+    /data/coolify/scripts/backup-medusa-db.sh
+  fi
+
+  # 3. Test migration in dry-run (if supported)
+  echo "Testing migration..."
+  # Note: Medusa doesn't have dry-run, so we test in staging first
+
+  # 4. Check disk space
+  DISK_FREE=$(df -h /data | tail -1 | awk '{print $4}')
+  echo "Available disk space: $DISK_FREE"
+
+  # 5. Estimate downtime
+  PENDING=$(npx medusa db:migrate --status 2>&1 | grep -c "pending" || true)
+  echo "Pending migrations: $PENDING"
+  echo "Estimated downtime: ~$(($PENDING * 2)) seconds"
+
+  echo "✅ Pre-deployment checks complete"
+  ```
+
+#### Task 7.4.4: Disaster Recovery Procedures
+
+- [ ] **Task 7.4.4**: Document disaster recovery (DR) procedures
+
+  **Recovery Time Objectives (RTO) and Recovery Point Objectives (RPO):**
+
+  | Service | RTO | RPO | Backup Method |
+  |---------|-----|-----|---------------|
+  | Medusa PostgreSQL | 1 hour | 24 hours | Daily full + WAL |
+  | Supabase PostgreSQL | 15 minutes | 15 minutes (Pro: PITR) | Automatic + manual |
+  | Static sites | 5 minutes | 0 (Git-based) | Git repository |
+  | Configuration | 30 minutes | 24 hours | Environment vars + secrets |
+
+  **Disaster Recovery Runbook:**
+
+  ```markdown
+  # DISASTER RECOVERY RUNBOOK
+  # Daniel Tarazona E-Commerce Platform
+
+  ## Emergency Contacts
+  - Primary Admin: daniel@danieltarazona.com
+  - Cloudflare Support: cloudflare.com/support
+  - Supabase Support: supabase.com/support
+  - VPS Provider: [Hetzner/Oracle Cloud support]
+
+  ## Scenario 1: Medusa Database Corruption/Loss
+
+  ### Assessment (5 minutes)
+  1. Verify database is actually down/corrupted
+     ```bash
+     docker exec coolify-medusa-db pg_isready -U medusa_user
+     docker logs coolify-medusa-db --tail 100
+     ```
+
+  2. Check Coolify dashboard for container status
+  3. Review recent deployments or changes
+
+  ### Recovery Procedure (30-60 minutes)
+
+  1. **Stop Medusa application** (prevent data corruption)
+     ```bash
+     docker stop coolify-medusa-app
+     ```
+
+  2. **Identify latest valid backup**
+     ```bash
+     # List local backups
+     ls -la /data/coolify/backups/medusa/
+
+     # List R2 backups
+     aws s3 ls s3://danieltarazona-backups/medusa/full/ \
+       --endpoint-url "$R2_ENDPOINT"
+     ```
+
+  3. **Download backup if needed**
+     ```bash
+     aws s3 cp s3://danieltarazona-backups/medusa/full/medusa_full_YYYYMMDD.dump \
+       /data/coolify/backups/restore.dump \
+       --endpoint-url "$R2_ENDPOINT"
+     ```
+
+  4. **Create new database container** (if original is corrupted)
+     ```bash
+     docker stop coolify-medusa-db || true
+     docker rm coolify-medusa-db || true
+
+     docker run -d \
+       --name coolify-medusa-db-new \
+       -e POSTGRES_USER=medusa_user \
+       -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
+       -e POSTGRES_DB=medusa \
+       -v /data/coolify/databases/medusa:/var/lib/postgresql/data \
+       postgres:15-alpine
+     ```
+
+  5. **Restore from backup**
+     ```bash
+     # Wait for database to be ready
+     sleep 10
+
+     # Restore from custom format backup
+     docker exec -i coolify-medusa-db-new pg_restore \
+       -U medusa_user \
+       -d medusa \
+       -v \
+       --clean \
+       --if-exists \
+       < /data/coolify/backups/restore.dump
+     ```
+
+  6. **Verify restoration**
+     ```bash
+     # Check table counts
+     docker exec coolify-medusa-db-new psql -U medusa_user -d medusa -c "
+       SELECT 'products' as table_name, COUNT(*) as count FROM product
+       UNION ALL
+       SELECT 'orders', COUNT(*) FROM order
+       UNION ALL
+       SELECT 'customers', COUNT(*) FROM customer;
+     "
+     ```
+
+  7. **Run any pending migrations**
+     ```bash
+     cd /data/coolify/applications/medusa
+     npx medusa db:migrate
+     ```
+
+  8. **Restart Medusa application**
+     ```bash
+     docker start coolify-medusa-app
+     ```
+
+  9. **Verify functionality**
+     - Test storefront: https://store.danieltarazona.com
+     - Test admin: https://admin.danieltarazona.com
+     - Check API health: `curl https://api.danieltarazona.com/health`
+
+  10. **Post-recovery**
+      - Document incident in incident log
+      - Review backup frequency
+      - Update monitoring alerts
+
+  ## Scenario 2: VPS Complete Failure
+
+  ### Recovery Procedure (2-4 hours)
+
+  1. **Provision new VPS**
+     ```bash
+     # Hetzner CLI or Oracle Cloud Console
+     hcloud server create \
+       --type cx32 \
+       --image ubuntu-22.04 \
+       --name danieltarazona-prod-new \
+       --ssh-key your-key
+     ```
+
+  2. **Install Coolify**
+     ```bash
+     curl -fsSL https://get.coolify.io | bash
+     ```
+
+  3. **Restore configuration from backup**
+     - Import Coolify settings
+     - Restore environment variables
+     - Configure Cloudflare Tunnel
+
+  4. **Restore databases from R2 backups**
+     (Follow Scenario 1 procedure)
+
+  5. **Deploy applications via Coolify**
+     - Connect GitHub repository
+     - Trigger deployments
+
+  6. **Update Cloudflare Tunnel**
+     ```bash
+     cloudflared tunnel route dns danieltarazona-tunnel \
+       store.danieltarazona.com
+     ```
+
+  7. **Verify all services**
+
+  ## Scenario 3: Supabase Database Issues
+
+  ### For Free Tier (No PITR)
+
+  1. **Restore from manual backup**
+     ```bash
+     # Get latest backup
+     ls -la backups/supabase/
+
+     # Restore schema
+     gunzip -c backups/supabase/schema_YYYYMMDD.sql.gz | \
+       psql "$DATABASE_POOLER_URL"
+
+     # Restore data
+     gunzip -c backups/supabase/data_YYYYMMDD.sql.gz | \
+       psql "$DATABASE_POOLER_URL"
+     ```
+
+  ### For Pro Tier (PITR Available)
+
+  1. **Use Supabase Dashboard**
+     - Go to Project Settings > Database
+     - Select "Point in Time Recovery"
+     - Choose recovery point
+     - Initiate recovery
+
+  ## Scenario 4: Cloudflare Tunnel Failure
+
+  ### Recovery Procedure (15-30 minutes)
+
+  1. **Check tunnel status**
+     ```bash
+     cloudflared tunnel info danieltarazona-tunnel
+     systemctl status cloudflared
+     ```
+
+  2. **Restart tunnel service**
+     ```bash
+     sudo systemctl restart cloudflared
+     ```
+
+  3. **If connector is corrupted, recreate**
+     ```bash
+     cloudflared tunnel delete danieltarazona-tunnel
+     cloudflared tunnel create danieltarazona-tunnel
+     cloudflared tunnel route dns danieltarazona-tunnel store.danieltarazona.com
+     cloudflared tunnel route dns danieltarazona-tunnel admin.danieltarazona.com
+     cloudflared tunnel route dns danieltarazona-tunnel api.danieltarazona.com
+     ```
+
+  4. **Update systemd service with new credentials**
+  ```
+
+  **Automated DR Testing Script:**
+
+  ```bash
+  #!/bin/bash
+  # scripts/dr-test.sh
+  # Run monthly to verify disaster recovery procedures
+
+  set -euo pipefail
+
+  echo "==================================="
+  echo "DISASTER RECOVERY TEST"
+  echo "Date: $(date)"
+  echo "==================================="
+
+  # Test 1: Verify backups exist and are valid
+  echo -e "\n📦 Test 1: Backup Verification"
+
+  LATEST_BACKUP=$(ls -t /data/coolify/backups/medusa/medusa_full_*.dump 2>/dev/null | head -1)
+  if [ -n "$LATEST_BACKUP" ]; then
+    echo "Latest backup: $LATEST_BACKUP"
+
+    # Verify backup integrity
+    if pg_restore --list "$LATEST_BACKUP" > /dev/null 2>&1; then
+      echo "✅ Backup integrity verified"
+    else
+      echo "❌ Backup integrity check failed!"
+      exit 1
+    fi
+  else
+    echo "❌ No backups found!"
+    exit 1
+  fi
+
+  # Test 2: Verify R2 connectivity
+  echo -e "\n☁️ Test 2: R2 Connectivity"
+
+  if aws s3 ls "s3://danieltarazona-backups/" --endpoint-url "$R2_ENDPOINT" > /dev/null 2>&1; then
+    R2_BACKUP_COUNT=$(aws s3 ls "s3://danieltarazona-backups/medusa/full/" --endpoint-url "$R2_ENDPOINT" | wc -l)
+    echo "✅ R2 accessible, $R2_BACKUP_COUNT backups found"
+  else
+    echo "❌ R2 connectivity failed!"
+    exit 1
+  fi
+
+  # Test 3: Test restore to temporary database
+  echo -e "\n🔄 Test 3: Restore Test"
+
+  # Create temporary test database
+  docker exec coolify-medusa-db psql -U medusa_user -d postgres -c "DROP DATABASE IF EXISTS medusa_dr_test;"
+  docker exec coolify-medusa-db psql -U medusa_user -d postgres -c "CREATE DATABASE medusa_dr_test;"
+
+  # Restore to test database
+  docker exec -i coolify-medusa-db pg_restore \
+    -U medusa_user \
+    -d medusa_dr_test \
+    < "$LATEST_BACKUP" 2>/dev/null
+
+  # Verify data
+  PRODUCT_COUNT=$(docker exec coolify-medusa-db psql -U medusa_user -d medusa_dr_test -t -c "SELECT COUNT(*) FROM product;")
+  echo "Products restored: $PRODUCT_COUNT"
+
+  # Cleanup test database
+  docker exec coolify-medusa-db psql -U medusa_user -d postgres -c "DROP DATABASE medusa_dr_test;"
+  echo "✅ Restore test successful"
+
+  # Test 4: Verify Cloudflare Tunnel
+  echo -e "\n🔗 Test 4: Cloudflare Tunnel"
+
+  if cloudflared tunnel info danieltarazona-tunnel > /dev/null 2>&1; then
+    TUNNEL_STATUS=$(cloudflared tunnel info danieltarazona-tunnel | grep "Status")
+    echo "✅ Tunnel active: $TUNNEL_STATUS"
+  else
+    echo "❌ Tunnel check failed!"
+  fi
+
+  # Test 5: Verify service endpoints
+  echo -e "\n🌐 Test 5: Service Endpoints"
+
+  endpoints=(
+    "https://store.danieltarazona.com"
+    "https://admin.danieltarazona.com"
+    "https://api.danieltarazona.com/health"
+  )
+
+  for endpoint in "${endpoints[@]}"; do
+    STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$endpoint" || echo "000")
+    if [ "$STATUS" -eq 200 ] || [ "$STATUS" -eq 301 ] || [ "$STATUS" -eq 302 ]; then
+      echo "✅ $endpoint - HTTP $STATUS"
+    else
+      echo "❌ $endpoint - HTTP $STATUS"
+    fi
+  done
+
+  echo -e "\n==================================="
+  echo "DR TEST COMPLETE"
+  echo "==================================="
+  ```
+
+  **DR Test Schedule:**
+
+  ```bash
+  # /etc/cron.d/dr-test
+  # Monthly DR test - First Sunday at 5 AM UTC
+  0 5 1-7 * 0 root /data/coolify/scripts/dr-test.sh >> /var/log/dr-test.log 2>&1
+  ```
+
+#### Task 7.4.5: Database Monitoring and Alerts
+
+- [ ] **Task 7.4.5**: Configure database monitoring and alerting
+
+  **PostgreSQL Health Check Script:**
+
+  ```bash
+  #!/bin/bash
+  # scripts/db-health-check.sh
+  # Run every 5 minutes via cron
+
+  set -euo pipefail
+
+  ALERT_WEBHOOK="${DISCORD_WEBHOOK_URL:-}"
+
+  send_alert() {
+    local message="$1"
+    if [ -n "$ALERT_WEBHOOK" ]; then
+      curl -s -X POST "$ALERT_WEBHOOK" \
+        -H "Content-Type: application/json" \
+        -d "{\"content\":\"$message\"}"
+    fi
+    echo "[ALERT] $message"
+  }
+
+  # Check database connectivity
+  if ! docker exec coolify-medusa-db pg_isready -U medusa_user > /dev/null 2>&1; then
+    send_alert "🚨 Medusa PostgreSQL is not responding!"
+    exit 1
+  fi
+
+  # Check connection count
+  CONNECTIONS=$(docker exec coolify-medusa-db psql -U medusa_user -d medusa -t -c \
+    "SELECT count(*) FROM pg_stat_activity;")
+
+  if [ "$CONNECTIONS" -gt 80 ]; then
+    send_alert "⚠️ High connection count: $CONNECTIONS/100"
+  fi
+
+  # Check database size
+  DB_SIZE=$(docker exec coolify-medusa-db psql -U medusa_user -d medusa -t -c \
+    "SELECT pg_size_pretty(pg_database_size('medusa'));")
+
+  # Alert if > 4GB (approaching limits)
+  SIZE_MB=$(docker exec coolify-medusa-db psql -U medusa_user -d medusa -t -c \
+    "SELECT pg_database_size('medusa') / 1024 / 1024;")
+
+  if [ "$SIZE_MB" -gt 4000 ]; then
+    send_alert "⚠️ Database size warning: $DB_SIZE"
+  fi
+
+  # Check for long-running queries
+  LONG_QUERIES=$(docker exec coolify-medusa-db psql -U medusa_user -d medusa -t -c \
+    "SELECT count(*) FROM pg_stat_activity WHERE state = 'active' AND query_start < now() - interval '5 minutes';")
+
+  if [ "$LONG_QUERIES" -gt 0 ]; then
+    send_alert "⚠️ $LONG_QUERIES long-running queries detected"
+  fi
+
+  # Check disk space
+  DISK_USAGE=$(df /data | tail -1 | awk '{print $5}' | tr -d '%')
+
+  if [ "$DISK_USAGE" -gt 85 ]; then
+    send_alert "⚠️ Disk usage at ${DISK_USAGE}%"
+  fi
+
+  # Log success
+  echo "[$(date)] Health check passed - Connections: $CONNECTIONS, Size: $DB_SIZE, Disk: ${DISK_USAGE}%"
+  ```
+
+#### Task Summary Table
+
+| Task ID | Description | Status |
+|---------|-------------|--------|
+| 7.4.1 | PostgreSQL backup automation for Medusa | [ ] |
+| 7.4.2 | Supabase backup strategy | [ ] |
+| 7.4.3 | Medusa schema migration workflow | [ ] |
+| 7.4.4 | Disaster recovery procedures | [ ] |
+| 7.4.5 | Database monitoring and alerts | [ ] |
+
+#### Backup and DR Resources
+
+**Documentation Links:**
+- [PostgreSQL Backup and Restore](https://www.postgresql.org/docs/current/backup.html)
+- [Medusa Migrations Guide](https://docs.medusajs.com/development/migrations/overview)
+- [Supabase Backups](https://supabase.com/docs/guides/platform/backups)
+- [Cloudflare R2 Documentation](https://developers.cloudflare.com/r2/)
+- [pg_dump Reference](https://www.postgresql.org/docs/current/app-pgdump.html)
+
+**Recommended Tools:**
+- `pgBackRest` - Advanced PostgreSQL backup solution
+- `WAL-G` - Archival and restoration tool for PostgreSQL
+- `Barman` - Backup and recovery manager for PostgreSQL
+- `rclone` - Cloud storage synchronization
+
+---
+
 ### Quick Reference: All Variables by Service
 
 | Service | Total Variables | Required | Optional |
