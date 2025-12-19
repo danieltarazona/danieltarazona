@@ -16565,4 +16565,973 @@ This template architecture provides:
 
 ---
 
+## Appendix D: Edge Cases, Service Limits, and Mitigation Strategies
+
+This section documents critical edge cases, service limitations, and recommended mitigation strategies for the production deployment. Understanding these constraints is essential for maintaining a reliable and cost-effective infrastructure.
+
+### Service Limits Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                           SERVICE LIMITS & EDGE CASES MATRIX                             │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────┬─────────────────────────────────────┬──────────────────────────────────┐
+│    Service      │        Free Tier Limit              │        Impact Level              │
+├─────────────────┼─────────────────────────────────────┼──────────────────────────────────┤
+│ Supabase        │ 500 MB database storage             │ HIGH - Data loss risk            │
+│                 │ 2 GB bandwidth/month                │ MEDIUM - Site unavailability     │
+│                 │ 50K MAU (monthly active users)      │ LOW - Auth rate limiting         │
+│                 │ 500K Edge Function invocations/mo   │ MEDIUM - Feature degradation     │
+├─────────────────┼─────────────────────────────────────┼──────────────────────────────────┤
+│ Cloudflare      │ 100K Workers requests/day           │ MEDIUM - API unavailability      │
+│                 │ 500 builds/month (Pages)            │ LOW - Deployment delays          │
+│                 │ 10 ms CPU time (Workers)            │ LOW - Timeout errors             │
+│                 │ 100 custom domains                  │ LOW - Multi-site limitation      │
+├─────────────────┼─────────────────────────────────────┼──────────────────────────────────┤
+│ VPS (Hetzner)   │ 2 vCPU / 2 GB RAM (CX22)            │ HIGH - Performance degradation   │
+│                 │ 40 GB disk space                    │ MEDIUM - Storage constraints     │
+│                 │ 20 TB traffic/month                 │ LOW - Bandwidth throttling       │
+├─────────────────┼─────────────────────────────────────┼──────────────────────────────────┤
+│ Medusa 2.0      │ 100 products (self-imposed)         │ LOW - Business decision          │
+│                 │ Single PostgreSQL connection        │ HIGH - Database bottleneck       │
+│                 │ Memory: ~512 MB baseline            │ MEDIUM - OOM risk                │
+└─────────────────┴─────────────────────────────────────┴──────────────────────────────────┘
+```
+
+---
+
+### Edge Case 1: Supabase 500 MB Database Limit
+
+#### Problem Description
+
+Supabase free tier provides only **500 MB** of PostgreSQL storage. For a portfolio site with contact forms and a small e-commerce store, this can be reached faster than expected due to:
+
+- **Contact form submissions**: Each submission with metadata ~2-5 KB
+- **Audit logs and timestamps**: Row-level security triggers add overhead
+- **Index bloat**: PostgreSQL indexes grow over time
+- **TOAST tables**: Large text fields stored externally
+
+#### Capacity Estimation
+
+| Data Type | Average Size | Estimated Count | Total Size |
+|-----------|--------------|-----------------|------------|
+| Contact submissions | 3 KB | 10,000 | 30 MB |
+| Newsletter signups | 1 KB | 5,000 | 5 MB |
+| Analytics events | 500 bytes | 100,000 | 50 MB |
+| Indexes & overhead | ~30% | - | 25 MB |
+| **Total Estimated** | - | - | **~110 MB** |
+
+**Note**: Medusa 2.0 should NOT use the Supabase free tier database due to its larger storage requirements. Use a separate PostgreSQL instance on the VPS.
+
+#### Warning Signs
+
+- Database size approaching 400 MB (80% threshold)
+- Slower query performance
+- Failed INSERT operations with storage errors
+- Dashboard warnings in Supabase console
+
+#### Monitoring Script
+
+```bash
+#!/bin/bash
+# supabase-storage-monitor.sh
+# Monitor Supabase database size and alert when approaching limit
+
+SUPABASE_PROJECT_ID="${SUPABASE_PROJECT_ID}"
+SUPABASE_SERVICE_KEY="${SUPABASE_SERVICE_KEY}"
+THRESHOLD_MB=400
+ALERT_EMAIL="admin@danieltarazona.com"
+
+# Query database size
+DB_SIZE_BYTES=$(curl -s \
+  -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+  "https://${SUPABASE_PROJECT_ID}.supabase.co/rest/v1/rpc/get_database_size" \
+  | jq -r '.size_bytes')
+
+DB_SIZE_MB=$((DB_SIZE_BYTES / 1024 / 1024))
+
+echo "Current database size: ${DB_SIZE_MB} MB / 500 MB"
+
+if [ "$DB_SIZE_MB" -gt "$THRESHOLD_MB" ]; then
+  echo "WARNING: Database size exceeds ${THRESHOLD_MB} MB threshold!"
+  # Send alert (configure with your preferred method)
+  # curl -X POST "https://api.sendgrid.com/..." -d "Database at ${DB_SIZE_MB}MB"
+fi
+```
+
+#### Supabase Database Size Query (SQL)
+
+```sql
+-- Check current database size
+SELECT
+  pg_size_pretty(pg_database_size(current_database())) as database_size,
+  pg_database_size(current_database()) as size_bytes;
+
+-- Check individual table sizes
+SELECT
+  schemaname,
+  tablename,
+  pg_size_pretty(pg_total_relation_size(schemaname || '.' || tablename)) as total_size,
+  pg_size_pretty(pg_relation_size(schemaname || '.' || tablename)) as table_size,
+  pg_size_pretty(pg_total_relation_size(schemaname || '.' || tablename) - pg_relation_size(schemaname || '.' || tablename)) as index_size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size(schemaname || '.' || tablename) DESC;
+
+-- Check for bloat
+SELECT
+  current_database(),
+  pg_size_pretty(pg_database_size(current_database())) as size,
+  (SELECT count(*) FROM contact_submissions) as contact_count,
+  (SELECT count(*) FROM newsletter_signups) as newsletter_count;
+```
+
+#### Mitigation Strategies
+
+| Strategy | Effort | Cost | Effectiveness |
+|----------|--------|------|---------------|
+| **Data archival** | Medium | Free | HIGH |
+| **Upgrade to Pro** | Low | $25/month | HIGH |
+| **Migrate to VPS PostgreSQL** | High | ~$4/month | HIGH |
+| **Compress/optimize data** | Medium | Free | MEDIUM |
+| **Reduce retention** | Low | Free | MEDIUM |
+
+##### Strategy 1: Automatic Data Archival (Recommended)
+
+```sql
+-- Create archive table
+CREATE TABLE IF NOT EXISTS contact_submissions_archive (
+  LIKE contact_submissions INCLUDING ALL
+);
+
+-- Archive submissions older than 90 days
+WITH archived AS (
+  DELETE FROM contact_submissions
+  WHERE created_at < NOW() - INTERVAL '90 days'
+  RETURNING *
+)
+INSERT INTO contact_submissions_archive
+SELECT * FROM archived;
+
+-- Create scheduled function (run monthly)
+CREATE OR REPLACE FUNCTION archive_old_submissions()
+RETURNS void AS $$
+BEGIN
+  INSERT INTO contact_submissions_archive
+  SELECT * FROM contact_submissions
+  WHERE created_at < NOW() - INTERVAL '90 days';
+
+  DELETE FROM contact_submissions
+  WHERE created_at < NOW() - INTERVAL '90 days';
+END;
+$$ LANGUAGE plpgsql;
+
+-- Schedule with pg_cron (Supabase extension)
+SELECT cron.schedule('archive-contacts', '0 0 1 * *', 'SELECT archive_old_submissions()');
+```
+
+##### Strategy 2: Export to External Storage
+
+```typescript
+// Archive to Cloudflare R2 or S3
+import { createClient } from '@supabase/supabase-js';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+
+async function archiveOldData() {
+  const supabase = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_KEY!
+  );
+
+  const s3 = new S3Client({
+    region: 'auto',
+    endpoint: process.env.R2_ENDPOINT,
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY!,
+      secretAccessKey: process.env.R2_SECRET_KEY!,
+    },
+  });
+
+  // Fetch old records
+  const { data: oldRecords } = await supabase
+    .from('contact_submissions')
+    .select('*')
+    .lt('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString());
+
+  if (oldRecords && oldRecords.length > 0) {
+    // Upload to R2
+    const archiveKey = `archives/contacts/${new Date().toISOString().split('T')[0]}.json`;
+    await s3.send(new PutObjectCommand({
+      Bucket: 'danieltarazona-archives',
+      Key: archiveKey,
+      Body: JSON.stringify(oldRecords),
+      ContentType: 'application/json',
+    }));
+
+    // Delete from Supabase
+    const ids = oldRecords.map(r => r.id);
+    await supabase
+      .from('contact_submissions')
+      .delete()
+      .in('id', ids);
+
+    console.log(`Archived ${oldRecords.length} records to ${archiveKey}`);
+  }
+}
+```
+
+##### Strategy 3: Upgrade Path
+
+If archival is insufficient:
+
+```bash
+# Supabase Pro tier: $25/month
+# Includes:
+# - 8 GB database storage
+# - 250 GB bandwidth
+# - Daily backups
+# - Email support
+
+# Consider this when:
+# - Database consistently above 400 MB
+# - Need point-in-time recovery
+# - Require SLA guarantees
+```
+
+---
+
+### Edge Case 2: Cloudflare Rate Limits and Service Constraints
+
+#### Problem Description
+
+Cloudflare free tier has several rate limits that can affect production operations:
+
+| Service | Limit | Resets |
+|---------|-------|--------|
+| Workers requests | 100,000/day | Daily at midnight UTC |
+| Workers CPU time | 10 ms per invocation | Per request |
+| Pages builds | 500/month | Monthly |
+| Pages concurrent builds | 1 | N/A |
+| Custom domains | 100 per account | N/A |
+| API rate limits | 1,200 requests/5 min | Rolling window |
+
+#### Warning Signs
+
+- HTTP 429 "Too Many Requests" errors
+- Workers returning "Exceeded CPU time limit" errors
+- Pages deployments queuing for extended periods
+- API calls returning rate limit headers
+
+#### Monitoring Dashboard Setup
+
+```javascript
+// Cloudflare Workers analytics query
+// Access via: dash.cloudflare.com > Workers & Pages > Analytics
+
+// Custom logging for rate limit monitoring
+addEventListener('fetch', event => {
+  event.respondWith(handleRequest(event.request));
+});
+
+async function handleRequest(request) {
+  const startTime = Date.now();
+
+  try {
+    const response = await processRequest(request);
+
+    // Log to Workers Analytics
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      path: new URL(request.url).pathname,
+      method: request.method,
+      duration: Date.now() - startTime,
+      status: response.status,
+    }));
+
+    return response;
+  } catch (error) {
+    // Track CPU timeout errors
+    if (error.message.includes('CPU')) {
+      console.error('CPU_LIMIT_EXCEEDED', {
+        path: new URL(request.url).pathname,
+        duration: Date.now() - startTime,
+      });
+    }
+    throw error;
+  }
+}
+```
+
+#### Mitigation Strategies
+
+##### Strategy 1: Implement Client-Side Rate Limiting
+
+```typescript
+// Rate limiting on contact form submissions
+// src/utils/rateLimiter.ts
+
+interface RateLimitConfig {
+  maxRequests: number;
+  windowMs: number;
+}
+
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+export function checkRateLimit(
+  key: string,
+  config: RateLimitConfig = { maxRequests: 5, windowMs: 60000 }
+): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const entry = rateLimitStore.get(key);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + config.windowMs });
+    return { allowed: true };
+  }
+
+  if (entry.count >= config.maxRequests) {
+    return {
+      allowed: false,
+      retryAfter: Math.ceil((entry.resetAt - now) / 1000)
+    };
+  }
+
+  entry.count++;
+  return { allowed: true };
+}
+
+// Usage in contact form API
+export async function handleContactSubmission(request: Request, env: Env) {
+  const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const rateCheck = checkRateLimit(`contact:${clientIP}`, {
+    maxRequests: 3,
+    windowMs: 3600000, // 1 hour
+  });
+
+  if (!rateCheck.allowed) {
+    return new Response(JSON.stringify({
+      error: 'Too many requests',
+      retryAfter: rateCheck.retryAfter,
+    }), {
+      status: 429,
+      headers: {
+        'Content-Type': 'application/json',
+        'Retry-After': String(rateCheck.retryAfter),
+      },
+    });
+  }
+
+  // Process submission...
+}
+```
+
+##### Strategy 2: Optimize CPU-Intensive Operations
+
+```typescript
+// Avoid CPU-intensive operations in Workers
+// BAD: Complex JSON parsing/validation
+// GOOD: Use Cloudflare's built-in features
+
+// Instead of:
+async function badHandler(request: Request) {
+  const data = await request.json();
+  // Complex validation logic...
+  const validated = complexValidation(data); // May exceed 10ms
+  return Response.json(validated);
+}
+
+// Use:
+async function goodHandler(request: Request) {
+  // Offload validation to client-side
+  // Use simple schema validation
+  const data = await request.json();
+
+  // Quick validation only
+  if (!data.email || !data.message) {
+    return Response.json({ error: 'Missing fields' }, { status: 400 });
+  }
+
+  // Store and validate asynchronously
+  await env.QUEUE.send({ type: 'validate_contact', data });
+  return Response.json({ status: 'queued' });
+}
+```
+
+##### Strategy 3: Implement Caching to Reduce Requests
+
+```typescript
+// Cache API responses to reduce Workers invocations
+export async function handleRequest(request: Request, env: Env) {
+  const cacheKey = new Request(request.url, request);
+  const cache = caches.default;
+
+  // Check cache first
+  let response = await cache.match(cacheKey);
+
+  if (response) {
+    // Add cache hit header for monitoring
+    response = new Response(response.body, response);
+    response.headers.set('X-Cache', 'HIT');
+    return response;
+  }
+
+  // Generate response
+  response = await generateResponse(request, env);
+
+  // Cache for 5 minutes (adjust based on content type)
+  if (response.ok) {
+    response.headers.set('Cache-Control', 'public, max-age=300');
+    response.headers.set('X-Cache', 'MISS');
+
+    // Store in cache (non-blocking)
+    event.waitUntil(cache.put(cacheKey, response.clone()));
+  }
+
+  return response;
+}
+```
+
+##### Strategy 4: Pages Build Optimization
+
+```yaml
+# Reduce unnecessary builds with smart CI/CD
+# .github/workflows/deploy.yml
+
+name: Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Only trigger on content/code changes
+      - 'src/**'
+      - 'public/**'
+      - 'astro.config.mjs'
+      - 'package.json'
+    paths-ignore:
+      # Skip builds for docs-only changes
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cache dependencies to speed up builds
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            node_modules
+            .astro
+          key: ${{ runner.os }}-astro-${{ hashFiles('**/package-lock.json') }}
+
+      - run: npm ci
+      - run: npm run build
+
+      # Use wrangler for deployment
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: pages deploy dist --project-name=danieltarazona
+```
+
+#### Upgrade Path
+
+```bash
+# Cloudflare Workers Paid: $5/month base + usage
+# Includes:
+# - 10 million requests/month
+# - 30 ms CPU time
+# - Durable Objects
+# - Queues
+# - Analytics Engine
+
+# Cloudflare Pro: $20/month
+# Includes:
+# - Faster builds (concurrent)
+# - Web Analytics
+# - Image Optimization
+# - Better DDoS protection
+```
+
+---
+
+### Edge Case 3: VPS Resource Constraints (Coolify + Medusa)
+
+#### Problem Description
+
+Running Coolify orchestration + Medusa 2.0 + PostgreSQL on a budget VPS can lead to:
+
+- **Memory exhaustion**: Node.js + PostgreSQL competing for RAM
+- **CPU throttling**: Build processes and runtime competing
+- **Disk I/O bottlenecks**: Database writes during high traffic
+- **Container crashes**: OOM killer terminating processes
+
+#### Minimum Resource Requirements
+
+| Component | Min RAM | Recommended RAM | Min CPU | Min Disk |
+|-----------|---------|-----------------|---------|----------|
+| Coolify | 256 MB | 512 MB | 0.5 vCPU | 2 GB |
+| Medusa 2.0 | 512 MB | 1 GB | 1 vCPU | 5 GB |
+| PostgreSQL | 256 MB | 512 MB | 0.5 vCPU | 10 GB |
+| Redis | 64 MB | 128 MB | 0.1 vCPU | 1 GB |
+| OS + Docker | 512 MB | 1 GB | 0.5 vCPU | 5 GB |
+| **Total** | **1.6 GB** | **3.1 GB** | **2.6 vCPU** | **23 GB** |
+
+**Recommendation**: Use **Hetzner CX32** (4 vCPU, 8 GB RAM, 80 GB disk) for comfortable headroom.
+
+#### Warning Signs
+
+- Docker containers restarting frequently
+- `dmesg` showing OOM killer messages
+- Slow response times during builds
+- Database connection timeouts
+- High load average (>2x CPU cores)
+
+#### Monitoring Commands
+
+```bash
+#!/bin/bash
+# vps-health-check.sh
+# Run regularly via cron to monitor VPS health
+
+echo "=== VPS Health Check $(date) ==="
+
+# Memory usage
+echo -e "\n--- Memory Usage ---"
+free -h
+echo "Memory pressure:"
+cat /proc/pressure/memory
+
+# CPU usage
+echo -e "\n--- CPU Usage ---"
+uptime
+echo "CPU pressure:"
+cat /proc/pressure/cpu
+
+# Disk usage
+echo -e "\n--- Disk Usage ---"
+df -h /
+echo "I/O pressure:"
+cat /proc/pressure/io
+
+# Docker container status
+echo -e "\n--- Docker Containers ---"
+docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}"
+
+# Check for OOM events
+echo -e "\n--- Recent OOM Events ---"
+dmesg | grep -i "out of memory" | tail -5
+
+# Top processes by memory
+echo -e "\n--- Top Memory Consumers ---"
+ps aux --sort=-%mem | head -10
+
+# PostgreSQL connections
+echo -e "\n--- PostgreSQL Connections ---"
+docker exec -it $(docker ps -qf "name=postgres") psql -U postgres -c "SELECT count(*) as connections FROM pg_stat_activity;"
+```
+
+#### Docker Compose Resource Limits
+
+```yaml
+# docker-compose.yml with resource constraints
+version: '3.8'
+
+services:
+  medusa:
+    image: medusajs/medusa:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1024M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=768
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:15-alpine
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=128MB"
+      - "-c"
+      - "effective_cache_size=256MB"
+      - "-c"
+      - "max_connections=50"
+      - "-c"
+      - "work_mem=4MB"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    command: redis-server --maxmemory 100mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+```
+
+#### Mitigation Strategies
+
+##### Strategy 1: Implement Swap Space
+
+```bash
+# Create swap file for memory overflow protection
+# Recommended: 2GB swap on 2GB RAM VPS
+
+# Check existing swap
+swapon --show
+
+# Create swap file
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+# Make permanent
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+# Adjust swappiness (lower = prefer RAM)
+sudo sysctl vm.swappiness=10
+echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf
+```
+
+##### Strategy 2: PostgreSQL Optimization for Low Memory
+
+```sql
+-- postgresql.conf optimizations for 512MB allocated to PostgreSQL
+-- /var/lib/postgresql/data/postgresql.conf
+
+-- Memory settings
+shared_buffers = 128MB          -- 25% of PostgreSQL memory allocation
+effective_cache_size = 256MB    -- 50% of PostgreSQL memory allocation
+work_mem = 4MB                  -- Per-operation memory
+maintenance_work_mem = 64MB     -- For VACUUM, CREATE INDEX
+
+-- Connection settings
+max_connections = 50            -- Limit connections to save memory
+-- Each connection uses ~5-10MB
+
+-- WAL settings
+wal_buffers = 4MB
+checkpoint_completion_target = 0.9
+
+-- Planner settings
+random_page_cost = 1.1          -- SSD optimization
+effective_io_concurrency = 200  -- SSD optimization
+
+-- Logging (minimal for performance)
+log_min_duration_statement = 1000  -- Log queries >1s
+log_checkpoints = on
+log_connections = off
+log_disconnections = off
+```
+
+##### Strategy 3: Node.js Memory Management
+
+```javascript
+// medusa-config.js - Memory optimization
+module.exports = {
+  projectConfig: {
+    // ... other config
+  },
+
+  // Optimize for lower memory environments
+  featureFlags: {
+    // Disable features not needed
+    tax_inclusive_pricing: false,
+  },
+};
+
+// package.json scripts
+{
+  "scripts": {
+    "start": "NODE_OPTIONS='--max-old-space-size=768' medusa start",
+    "develop": "NODE_OPTIONS='--max-old-space-size=512' medusa develop"
+  }
+}
+```
+
+##### Strategy 4: Implement Connection Pooling
+
+```typescript
+// Use PgBouncer or built-in pooling for Medusa
+// docker-compose.yml addition
+
+services:
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      - DATABASE_URL=postgres://postgres:password@postgres:5432/medusa
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=100
+      - DEFAULT_POOL_SIZE=20
+      - MIN_POOL_SIZE=5
+      - RESERVE_POOL_SIZE=5
+    ports:
+      - "6432:6432"
+    depends_on:
+      - postgres
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+```
+
+##### Strategy 5: Scheduled Maintenance
+
+```bash
+#!/bin/bash
+# maintenance.sh - Run weekly via cron
+# 0 3 * * 0 /opt/scripts/maintenance.sh
+
+echo "Starting weekly maintenance: $(date)"
+
+# 1. Clean Docker resources
+echo "Cleaning Docker..."
+docker system prune -af --volumes --filter "until=168h"
+
+# 2. PostgreSQL maintenance
+echo "PostgreSQL VACUUM..."
+docker exec -it postgres psql -U postgres -d medusa -c "VACUUM ANALYZE;"
+
+# 3. Clear old logs
+echo "Clearing old logs..."
+find /var/log -type f -name "*.log" -mtime +7 -delete
+journalctl --vacuum-time=7d
+
+# 4. Clear Medusa uploads cache (if applicable)
+echo "Clearing uploads cache..."
+docker exec medusa rm -rf /app/uploads/cache/*
+
+# 5. Restart services to reclaim memory
+echo "Restarting services..."
+docker compose restart medusa redis
+
+echo "Maintenance complete: $(date)"
+```
+
+#### Upgrade Path
+
+```bash
+# Hetzner VPS Upgrade Options
+
+# CX22 (Current minimum): €4.85/month
+# - 2 vCPU, 4 GB RAM, 40 GB disk
+# - Suitable for: Development, low-traffic production
+
+# CX32 (Recommended): €8.98/month
+# - 4 vCPU, 8 GB RAM, 80 GB disk
+# - Suitable for: Production with moderate traffic
+
+# CX42 (Growth): €17.49/month
+# - 8 vCPU, 16 GB RAM, 160 GB disk
+# - Suitable for: High traffic, multiple Medusa instances
+
+# Dedicated CPU Options (for consistent performance):
+# CCX13: €15.39/month - 2 dedicated vCPU, 8 GB RAM
+# CCX23: €30.39/month - 4 dedicated vCPU, 16 GB RAM
+```
+
+---
+
+### Edge Case 4: Network and Connectivity Issues
+
+#### Problem Description
+
+Cloudflare Tunnel and multi-service architecture can experience:
+
+- **Tunnel disconnections**: cloudflared losing connection
+- **DNS propagation delays**: Changes not reflecting immediately
+- **SSL certificate issues**: Certificate renewal failures
+- **Cross-origin problems**: CORS misconfigurations
+
+#### Monitoring and Alerting
+
+```bash
+#!/bin/bash
+# tunnel-monitor.sh
+# Monitor Cloudflare Tunnel health
+
+TUNNEL_ID="${CLOUDFLARE_TUNNEL_ID}"
+TUNNEL_NAME="${CLOUDFLARE_TUNNEL_NAME}"
+
+# Check if cloudflared is running
+if ! pgrep -x "cloudflared" > /dev/null; then
+    echo "CRITICAL: cloudflared process not running!"
+    systemctl restart cloudflared
+    exit 1
+fi
+
+# Check tunnel connectivity
+TUNNEL_STATUS=$(cloudflared tunnel info "$TUNNEL_ID" 2>&1)
+if echo "$TUNNEL_STATUS" | grep -q "healthy"; then
+    echo "Tunnel $TUNNEL_NAME is healthy"
+else
+    echo "WARNING: Tunnel may be unhealthy"
+    echo "$TUNNEL_STATUS"
+fi
+
+# Check endpoint accessibility
+ENDPOINTS=(
+    "https://store.danieltarazona.com/health"
+    "https://admin.danieltarazona.com/health"
+)
+
+for endpoint in "${ENDPOINTS[@]}"; do
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$endpoint" --max-time 10)
+    if [ "$HTTP_CODE" != "200" ]; then
+        echo "WARNING: $endpoint returned $HTTP_CODE"
+    else
+        echo "OK: $endpoint"
+    fi
+done
+```
+
+#### Tunnel Auto-Recovery
+
+```yaml
+# /etc/systemd/system/cloudflared.service
+[Unit]
+Description=Cloudflare Tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cloudflared
+ExecStart=/usr/local/bin/cloudflared tunnel --config /etc/cloudflared/config.yml run
+Restart=always
+RestartSec=10
+# Auto-restart on failure
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+---
+
+### Edge Case 5: Data Consistency and Backup Failures
+
+#### Problem Description
+
+- **Backup job failures**: Cron jobs silently failing
+- **Inconsistent backups**: Partial data captures
+- **Restore failures**: Backups that can't be restored
+
+#### Backup Verification Script
+
+```bash
+#!/bin/bash
+# verify-backup.sh
+# Verify backup integrity after creation
+
+BACKUP_DIR="/opt/backups"
+LATEST_BACKUP=$(ls -t "$BACKUP_DIR"/*.sql.gz 2>/dev/null | head -1)
+
+if [ -z "$LATEST_BACKUP" ]; then
+    echo "ERROR: No backup files found!"
+    exit 1
+fi
+
+# Check file size (should be > 1KB)
+BACKUP_SIZE=$(stat -f%z "$LATEST_BACKUP" 2>/dev/null || stat -c%s "$LATEST_BACKUP")
+if [ "$BACKUP_SIZE" -lt 1024 ]; then
+    echo "ERROR: Backup file too small ($BACKUP_SIZE bytes)"
+    exit 1
+fi
+
+# Verify gzip integrity
+if ! gzip -t "$LATEST_BACKUP" 2>/dev/null; then
+    echo "ERROR: Backup file is corrupted!"
+    exit 1
+fi
+
+# Test restore to temp database
+echo "Testing restore..."
+gunzip -c "$LATEST_BACKUP" | docker exec -i postgres psql -U postgres -d test_restore 2>/dev/null
+
+if [ $? -eq 0 ]; then
+    echo "SUCCESS: Backup verified and restorable"
+    docker exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS test_restore;"
+else
+    echo "ERROR: Backup restore test failed!"
+    exit 1
+fi
+```
+
+---
+
+### Summary: Edge Case Response Matrix
+
+| Edge Case | Detection | Automated Response | Manual Intervention |
+|-----------|-----------|-------------------|---------------------|
+| Supabase 500MB limit | Monitor query | Archive old data | Upgrade plan or migrate |
+| Cloudflare rate limit | 429 responses | Cache + rate limit | Upgrade to paid tier |
+| VPS memory exhaustion | OOM in dmesg | Restart + swap | Upgrade VPS |
+| VPS disk full | df alerts | Log rotation | Add disk / archive |
+| Tunnel disconnection | Health checks | Auto-restart service | Check Cloudflare status |
+| Backup failure | Cron exit codes | Retry + alert | Manual backup + investigate |
+| SSL cert expiration | cert-checker | Auto-renew (Cloudflare) | Manual renewal |
+
+### Preventive Measures Checklist
+
+- [ ] Set up monitoring dashboards for all services
+- [ ] Configure alerting thresholds (Slack, email, PagerDuty)
+- [ ] Implement automatic data archival for Supabase
+- [ ] Enable swap space on VPS
+- [ ] Configure Docker resource limits
+- [ ] Set up backup verification scripts
+- [ ] Document incident response procedures
+- [ ] Schedule regular capacity reviews (monthly)
+- [ ] Test disaster recovery procedures (quarterly)
+
+---
+
+*This appendix should be reviewed and updated quarterly as service limits and best practices evolve.*
+
+---
+
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*
