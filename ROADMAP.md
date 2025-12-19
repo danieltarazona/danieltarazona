@@ -4403,6 +4403,1690 @@ npm run lint
 | 4.1.9 | Create base layout for all pages | [ ] |
 | 4.1.10 | Create environment variables template | [ ] |
 
+### Astro Storefront Integration with Medusa
+
+This section covers connecting the Astro storefront (`store.danieltarazona.com`) to the Medusa 2.0 backend. The storefront will be a separate Astro project that fetches product data from the Medusa API and provides cart functionality and checkout flow.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                    ASTRO STOREFRONT + MEDUSA 2.0 ARCHITECTURE                            │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────┐│
+│  │                         ASTRO STOREFRONT (store.danieltarazona.com)                 ││
+│  │                                                                                      ││
+│  │   ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐                 ││
+│  │   │  Product Listing │  │   Product Detail │  │     Cart Page    │                 ││
+│  │   │     (SSG/ISR)    │  │      (SSG/ISR)   │  │   (Client-side)  │                 ││
+│  │   └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘                 ││
+│  │            │                     │                     │                            ││
+│  │            │         ┌───────────┴───────────┐        │                            ││
+│  │            │         │    Checkout Flow      │        │                            ││
+│  │            │         │   (Client-side SPA)   │        │                            ││
+│  │            │         └───────────┬───────────┘        │                            ││
+│  │            └─────────────────────┼────────────────────┘                            ││
+│  │                                  │                                                  ││
+│  │                                  ▼                                                  ││
+│  │   ┌───────────────────────────────────────────────────────────────────────────┐    ││
+│  │   │                      Medusa JS SDK (@medusajs/js-sdk)                      │    ││
+│  │   │  • Product queries  • Cart management  • Checkout API  • Customer auth    │    ││
+│  │   └──────────────────────────────────────┬────────────────────────────────────┘    ││
+│  │                                          │                                          ││
+│  └──────────────────────────────────────────┼──────────────────────────────────────────┘│
+│                                             │                                           │
+│                                             │ HTTPS API Calls                           │
+│                                             │ (via Cloudflare Tunnel)                   │
+│                                             ▼                                           │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────┐│
+│  │                              MEDUSA 2.0 BACKEND (VPS)                               ││
+│  │                                                                                      ││
+│  │   ┌────────────────────────────────────────────────────────────────────────────┐   ││
+│  │   │                        Store API (/store/*)                                 │   ││
+│  │   │  GET  /store/products           - List products                            │   ││
+│  │   │  GET  /store/products/:id       - Get product details                      │   ││
+│  │   │  GET  /store/collections        - List collections                         │   ││
+│  │   │  POST /store/carts              - Create cart                              │   ││
+│  │   │  POST /store/carts/:id/line-items - Add to cart                            │   ││
+│  │   │  POST /store/carts/:id/complete  - Complete checkout                       │   ││
+│  │   │  POST /store/customers          - Register customer                        │   ││
+│  │   │  POST /store/auth               - Customer login                           │   ││
+│  │   └────────────────────────────────────────────────────────────────────────────┘   ││
+│  │                                          │                                          ││
+│  │                                          ▼                                          ││
+│  │   ┌────────────────────────────────────────────────────────────────────────────┐   ││
+│  │   │                        PostgreSQL Database                                  │   ││
+│  │   │  products, variants, carts, orders, customers, inventory, payments         │   ││
+│  │   └────────────────────────────────────────────────────────────────────────────┘   ││
+│  │                                                                                      ││
+│  └─────────────────────────────────────────────────────────────────────────────────────┘│
+│                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Data Flow for E-Commerce Operations
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                           E-COMMERCE DATA FLOW DIAGRAM                                   │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+PRODUCT BROWSING (Static Generation at Build Time):
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                          │
+│  Build Time:                                                                             │
+│  ┌──────────┐    GET /store/products    ┌─────────────┐    Query     ┌───────────────┐ │
+│  │  Astro   │ ─────────────────────────▶│  Medusa API │ ──────────▶ │  PostgreSQL    │ │
+│  │  Build   │ ◀───────────────────────── │             │ ◀────────── │  (products)    │ │
+│  └──────────┘    JSON product list       └─────────────┘   Results   └───────────────┘ │
+│       │                                                                                  │
+│       ▼                                                                                  │
+│  ┌──────────────────────────┐                                                           │
+│  │  Static HTML Pages       │                                                           │
+│  │  ├── /products/index.html│                                                           │
+│  │  ├── /products/[slug].html │                                                         │
+│  │  └── /collections/[slug].html │                                                      │
+│  └──────────────────────────┘                                                           │
+│                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+CART OPERATIONS (Client-side at Runtime):
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                          │
+│  1. Create Cart (on first add-to-cart):                                                  │
+│  ┌──────────┐    POST /store/carts     ┌─────────────┐  INSERT INTO  ┌───────────────┐ │
+│  │  Browser │ ────────────────────────▶│  Medusa API │ ────────────▶│  PostgreSQL   │  │
+│  │  (React) │ ◀─────────────────────── │             │ ◀──────────── │  (carts)      │  │
+│  └──────────┘   { cart_id: "cart_..." } └─────────────┘   cart_id    └───────────────┘ │
+│       │                                                                                  │
+│       │ Store cart_id in localStorage                                                   │
+│       ▼                                                                                  │
+│  ┌──────────────────────────┐                                                           │
+│  │  localStorage.cartId =   │                                                           │
+│  │  "cart_01H..."           │                                                           │
+│  └──────────────────────────┘                                                           │
+│                                                                                          │
+│  2. Add Item to Cart:                                                                   │
+│  ┌──────────┐  POST /store/carts/:id/line-items  ┌─────────────┐    ┌───────────────┐  │
+│  │  Browser │ ────────────────────────────────▶ │  Medusa API │ ──▶│  PostgreSQL   │  │
+│  │  (React) │ ◀──────────────────────────────── │             │ ◀── │  (cart_items) │  │
+│  └──────────┘   { cart: {..., items: [...]} }   └─────────────┘     └───────────────┘  │
+│                                                                                          │
+│  3. Update Cart (quantity change, remove item):                                         │
+│  ┌──────────┐  POST /store/carts/:id/line-items/:item_id  ┌─────────────┐              │
+│  │  Browser │ ──────────────────────────────────────────▶│  Medusa API │              │
+│  │  (React) │ ◀────────────────────────────────────────── │             │              │
+│  └──────────┘   { cart: {...} }                          └─────────────┘              │
+│                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+CHECKOUT FLOW (Client-side Multi-step Process):
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                          │
+│  Step 1: Add Shipping Address                                                           │
+│  POST /store/carts/:id ──▶ { shipping_address: {...} }                                  │
+│                                                                                          │
+│  Step 2: Select Shipping Option                                                         │
+│  GET /store/shipping-options/:cart_id ──▶ [{ id, name, amount }...]                     │
+│  POST /store/carts/:id ──▶ { shipping_method: option_id }                               │
+│                                                                                          │
+│  Step 3: Initialize Payment Session                                                     │
+│  POST /store/carts/:id/payment-sessions ──▶ { provider: "stripe" }                      │
+│                                                                                          │
+│  Step 4: Complete Checkout                                                              │
+│  POST /store/carts/:id/complete ──▶ { order_id: "order_..." }                           │
+│                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Task 4.2: Create Astro Storefront Project
+
+- [ ] **Task 4.2.1**: Create separate Astro project for store storefront
+  ```bash
+  # Create storefront project (separate from portfolio)
+  npm create astro@latest danieltarazona-store -- \
+    --template minimal \
+    --typescript strict \
+    --install \
+    --git
+
+  # Navigate to project
+  cd danieltarazona-store
+
+  # Project will serve store.danieltarazona.com
+  ```
+
+- [ ] **Task 4.2.2**: Configure storefront project structure
+  ```
+  danieltarazona-store/
+  ├── astro.config.mjs           # Astro configuration for store
+  ├── tsconfig.json              # TypeScript configuration
+  ├── package.json               # Dependencies including Medusa SDK
+  ├── .env                       # Environment variables (git-ignored)
+  ├── .env.example               # Environment template
+  │
+  ├── public/
+  │   ├── favicon.svg
+  │   └── robots.txt
+  │
+  ├── src/
+  │   ├── components/
+  │   │   ├── common/            # Shared components
+  │   │   │   ├── Header.astro
+  │   │   │   ├── Footer.astro
+  │   │   │   └── Navigation.astro
+  │   │   │
+  │   │   ├── products/          # Product components
+  │   │   │   ├── ProductCard.astro
+  │   │   │   ├── ProductGrid.astro
+  │   │   │   ├── ProductGallery.tsx    # Interactive image gallery
+  │   │   │   ├── ProductInfo.astro
+  │   │   │   ├── VariantSelector.tsx   # Interactive variant picker
+  │   │   │   └── AddToCartButton.tsx   # Interactive add to cart
+  │   │   │
+  │   │   ├── cart/              # Cart components (all interactive)
+  │   │   │   ├── CartProvider.tsx      # Cart context provider
+  │   │   │   ├── CartIcon.tsx          # Header cart icon with count
+  │   │   │   ├── CartDrawer.tsx        # Slide-out cart drawer
+  │   │   │   ├── CartItem.tsx          # Individual cart line item
+  │   │   │   └── CartSummary.tsx       # Cart totals display
+  │   │   │
+  │   │   ├── checkout/          # Checkout components (all interactive)
+  │   │   │   ├── CheckoutFlow.tsx      # Main checkout orchestrator
+  │   │   │   ├── ShippingForm.tsx      # Shipping address form
+  │   │   │   ├── ShippingOptions.tsx   # Shipping method selector
+  │   │   │   ├── PaymentForm.tsx       # Payment details (Stripe Elements)
+  │   │   │   ├── OrderSummary.tsx      # Order review
+  │   │   │   └── OrderConfirmation.tsx # Success page content
+  │   │   │
+  │   │   └── collections/       # Collection components
+  │   │       ├── CollectionCard.astro
+  │   │       └── CollectionGrid.astro
+  │   │
+  │   ├── layouts/
+  │   │   ├── BaseLayout.astro   # HTML wrapper
+  │   │   ├── StoreLayout.astro  # Store pages with cart provider
+  │   │   └── CheckoutLayout.astro # Minimal checkout layout
+  │   │
+  │   ├── pages/
+  │   │   ├── index.astro        # Store homepage
+  │   │   ├── products/
+  │   │   │   ├── index.astro    # All products listing
+  │   │   │   └── [handle].astro # Product detail page (SSG)
+  │   │   ├── collections/
+  │   │   │   ├── index.astro    # All collections
+  │   │   │   └── [handle].astro # Collection page (SSG)
+  │   │   ├── cart.astro         # Full cart page
+  │   │   ├── checkout/
+  │   │   │   ├── index.astro    # Checkout start
+  │   │   │   └── success.astro  # Order confirmation
+  │   │   └── account/           # Customer account pages
+  │   │       ├── login.astro
+  │   │       ├── register.astro
+  │   │       └── orders.astro
+  │   │
+  │   ├── lib/
+  │   │   ├── medusa/
+  │   │   │   ├── client.ts      # Medusa SDK client instance
+  │   │   │   ├── products.ts    # Product API helpers
+  │   │   │   ├── cart.ts        # Cart API helpers
+  │   │   │   ├── checkout.ts    # Checkout API helpers
+  │   │   │   └── customer.ts    # Customer auth helpers
+  │   │   │
+  │   │   ├── utils/
+  │   │   │   ├── price.ts       # Price formatting utilities
+  │   │   │   ├── image.ts       # Image URL helpers
+  │   │   │   └── storage.ts     # localStorage helpers
+  │   │   │
+  │   │   └── hooks/             # React hooks for storefront
+  │   │       ├── useCart.ts     # Cart state hook
+  │   │       ├── useProduct.ts  # Product data hook
+  │   │       └── useCheckout.ts # Checkout state hook
+  │   │
+  │   ├── types/
+  │   │   ├── medusa.ts          # Medusa type definitions
+  │   │   └── store.ts           # Store-specific types
+  │   │
+  │   ├── styles/
+  │   │   ├── global.css
+  │   │   └── store.css
+  │   │
+  │   └── env.d.ts
+  │
+  └── tailwind.config.mjs
+  ```
+
+- [ ] **Task 4.2.3**: Install Medusa SDK and dependencies
+  ```bash
+  cd danieltarazona-store
+
+  # Install Medusa JS SDK (v2.0)
+  npm install @medusajs/js-sdk
+
+  # Install React for interactive components
+  npx astro add react
+
+  # Install Tailwind CSS for styling
+  npx astro add tailwind
+
+  # Install additional dependencies
+  npm install @stripe/stripe-js @stripe/react-stripe-js  # Stripe payments
+  npm install zustand                                     # State management
+  npm install react-hook-form @hookform/resolvers zod    # Form handling
+  npm install clsx tailwind-merge                        # Utility classes
+
+  # Dev dependencies
+  npm install -D @types/react @types/react-dom
+  ```
+
+#### Task 4.2.4: Configure Medusa SDK Client
+
+- [ ] **Task 4.2.4**: Set up Medusa SDK client
+
+  **src/lib/medusa/client.ts:**
+  ```typescript
+  import Medusa from '@medusajs/js-sdk';
+
+  // Initialize Medusa client
+  export const medusa = new Medusa({
+    baseUrl: import.meta.env.PUBLIC_MEDUSA_BACKEND_URL || 'http://localhost:9000',
+    maxRetries: 3,
+    publishableKey: import.meta.env.PUBLIC_MEDUSA_PUBLISHABLE_KEY,
+  });
+
+  // Type-safe region configuration
+  export const DEFAULT_REGION = 'us';
+
+  // Export typed store API methods
+  export const storeApi = {
+    // Products
+    listProducts: async (params?: { limit?: number; offset?: number; collection_id?: string[] }) => {
+      return medusa.store.product.list(params);
+    },
+
+    getProduct: async (handle: string) => {
+      const { products } = await medusa.store.product.list({ handle });
+      return products?.[0];
+    },
+
+    // Collections
+    listCollections: async () => {
+      return medusa.store.collection.list();
+    },
+
+    getCollection: async (handle: string) => {
+      const { collections } = await medusa.store.collection.list({ handle });
+      return collections?.[0];
+    },
+  };
+
+  // Export cart API methods
+  export const cartApi = {
+    create: async (regionId?: string) => {
+      return medusa.store.cart.create({ region_id: regionId });
+    },
+
+    retrieve: async (cartId: string) => {
+      return medusa.store.cart.retrieve(cartId);
+    },
+
+    addLineItem: async (cartId: string, variantId: string, quantity: number = 1) => {
+      return medusa.store.cart.createLineItem(cartId, {
+        variant_id: variantId,
+        quantity,
+      });
+    },
+
+    updateLineItem: async (cartId: string, lineItemId: string, quantity: number) => {
+      return medusa.store.cart.updateLineItem(cartId, lineItemId, { quantity });
+    },
+
+    removeLineItem: async (cartId: string, lineItemId: string) => {
+      return medusa.store.cart.deleteLineItem(cartId, lineItemId);
+    },
+
+    updateCart: async (cartId: string, data: {
+      email?: string;
+      shipping_address?: {
+        first_name: string;
+        last_name: string;
+        address_1: string;
+        address_2?: string;
+        city: string;
+        province?: string;
+        postal_code: string;
+        country_code: string;
+        phone?: string;
+      };
+      billing_address?: object;
+    }) => {
+      return medusa.store.cart.update(cartId, data);
+    },
+  };
+
+  // Export checkout API methods
+  export const checkoutApi = {
+    getShippingOptions: async (cartId: string) => {
+      return medusa.store.fulfillment.listCartOptions({ cart_id: cartId });
+    },
+
+    addShippingMethod: async (cartId: string, optionId: string) => {
+      return medusa.store.cart.addShippingMethod(cartId, { option_id: optionId });
+    },
+
+    createPaymentSessions: async (cartId: string) => {
+      return medusa.store.payment.initiatePaymentSession(
+        { cart_id: cartId },
+        { provider_id: 'stripe' }
+      );
+    },
+
+    completeCart: async (cartId: string) => {
+      return medusa.store.cart.complete(cartId);
+    },
+  };
+  ```
+
+#### Task 4.2.5: Product Listing Pages
+
+- [ ] **Task 4.2.5**: Create product listing page
+
+  **src/pages/products/index.astro:**
+  ```astro
+  ---
+  import StoreLayout from '@/layouts/StoreLayout.astro';
+  import ProductGrid from '@/components/products/ProductGrid.astro';
+  import { storeApi } from '@/lib/medusa/client';
+
+  // Fetch all products at build time (SSG)
+  const { products } = await storeApi.listProducts({ limit: 100 });
+
+  // Filter published products only
+  const publishedProducts = products?.filter(p => p.status === 'published') ?? [];
+
+  // SEO metadata
+  const title = 'All Products';
+  const description = 'Browse our complete collection of products.';
+  ---
+
+  <StoreLayout title={title} description={description}>
+    <main class="container mx-auto px-4 py-8">
+      <header class="mb-8">
+        <h1 class="text-3xl font-bold mb-2">{title}</h1>
+        <p class="text-gray-600">{publishedProducts.length} products available</p>
+      </header>
+
+      {publishedProducts.length > 0 ? (
+        <ProductGrid products={publishedProducts} />
+      ) : (
+        <p class="text-center text-gray-500 py-12">
+          No products available at the moment.
+        </p>
+      )}
+    </main>
+  </StoreLayout>
+  ```
+
+  **src/components/products/ProductGrid.astro:**
+  ```astro
+  ---
+  import ProductCard from './ProductCard.astro';
+  import type { Product } from '@/types/medusa';
+
+  interface Props {
+    products: Product[];
+    columns?: 2 | 3 | 4;
+  }
+
+  const { products, columns = 4 } = Astro.props;
+
+  const gridCols = {
+    2: 'grid-cols-1 sm:grid-cols-2',
+    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+    4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+  };
+  ---
+
+  <div class={`grid ${gridCols[columns]} gap-6`}>
+    {products.map((product) => (
+      <ProductCard product={product} />
+    ))}
+  </div>
+  ```
+
+  **src/components/products/ProductCard.astro:**
+  ```astro
+  ---
+  import { formatPrice } from '@/lib/utils/price';
+  import type { Product } from '@/types/medusa';
+
+  interface Props {
+    product: Product;
+  }
+
+  const { product } = Astro.props;
+
+  // Get primary image
+  const thumbnail = product.thumbnail || product.images?.[0]?.url;
+
+  // Get price range
+  const prices = product.variants?.flatMap(v => v.prices || []) ?? [];
+  const minPrice = prices.length > 0
+    ? Math.min(...prices.map(p => p.amount))
+    : null;
+
+  // Build product URL
+  const productUrl = `/products/${product.handle}`;
+  ---
+
+  <article class="group relative">
+    <a href={productUrl} class="block">
+      <!-- Product Image -->
+      <div class="aspect-square overflow-hidden rounded-lg bg-gray-100">
+        {thumbnail ? (
+          <img
+            src={thumbnail}
+            alt={product.title}
+            class="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <div class="flex h-full items-center justify-center">
+            <span class="text-gray-400">No image</span>
+          </div>
+        )}
+      </div>
+
+      <!-- Product Info -->
+      <div class="mt-4">
+        <h3 class="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+          {product.title}
+        </h3>
+
+        {product.subtitle && (
+          <p class="mt-1 text-sm text-gray-500">{product.subtitle}</p>
+        )}
+
+        {minPrice !== null && (
+          <p class="mt-2 text-sm font-semibold text-gray-900">
+            {formatPrice(minPrice)}
+          </p>
+        )}
+      </div>
+    </a>
+  </article>
+  ```
+
+#### Task 4.2.6: Product Detail Page
+
+- [ ] **Task 4.2.6**: Create product detail page with variant selection
+
+  **src/pages/products/[handle].astro:**
+  ```astro
+  ---
+  import StoreLayout from '@/layouts/StoreLayout.astro';
+  import ProductGallery from '@/components/products/ProductGallery';
+  import ProductInfo from '@/components/products/ProductInfo.astro';
+  import VariantSelector from '@/components/products/VariantSelector';
+  import AddToCartButton from '@/components/products/AddToCartButton';
+  import { storeApi } from '@/lib/medusa/client';
+  import type { Product } from '@/types/medusa';
+
+  // Generate static paths for all products
+  export async function getStaticPaths() {
+    const { products } = await storeApi.listProducts({ limit: 100 });
+
+    return products
+      ?.filter(p => p.status === 'published')
+      .map((product) => ({
+        params: { handle: product.handle },
+        props: { product },
+      })) ?? [];
+  }
+
+  interface Props {
+    product: Product;
+  }
+
+  const { product } = Astro.props;
+
+  // Prepare images for gallery
+  const images = product.images?.map(img => ({
+    url: img.url,
+    alt: product.title,
+  })) ?? [];
+
+  // SEO metadata
+  const title = product.title;
+  const description = product.description || `Shop ${product.title} at Daniel Tarazona Store`;
+  const ogImage = product.thumbnail || images[0]?.url;
+  ---
+
+  <StoreLayout title={title} description={description} image={ogImage}>
+    <main class="container mx-auto px-4 py-8">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+        <!-- Product Gallery (Interactive) -->
+        <div class="lg:sticky lg:top-4 lg:self-start">
+          <ProductGallery images={images} client:load />
+        </div>
+
+        <!-- Product Information -->
+        <div class="flex flex-col gap-6">
+          <ProductInfo product={product} />
+
+          <!-- Variant Selection (Interactive) -->
+          {product.variants && product.variants.length > 1 && (
+            <VariantSelector
+              variants={product.variants}
+              options={product.options}
+              client:load
+            />
+          )}
+
+          <!-- Add to Cart Button (Interactive) -->
+          <AddToCartButton
+            productId={product.id}
+            variants={product.variants}
+            client:load
+          />
+
+          <!-- Product Description -->
+          {product.description && (
+            <div class="prose prose-sm max-w-none">
+              <h2 class="text-lg font-semibold mb-2">Description</h2>
+              <p>{product.description}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </main>
+  </StoreLayout>
+  ```
+
+  **src/components/products/AddToCartButton.tsx:**
+  ```tsx
+  import { useState } from 'react';
+  import { useCart } from '@/lib/hooks/useCart';
+  import type { ProductVariant } from '@/types/medusa';
+
+  interface Props {
+    productId: string;
+    variants: ProductVariant[];
+  }
+
+  export default function AddToCartButton({ productId, variants }: Props) {
+    const { addItem, isLoading } = useCart();
+    const [selectedVariantId, setSelectedVariantId] = useState<string>(
+      variants[0]?.id || ''
+    );
+    const [quantity, setQuantity] = useState(1);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState(false);
+
+    const selectedVariant = variants.find(v => v.id === selectedVariantId);
+    const inStock = selectedVariant?.inventory_quantity
+      ? selectedVariant.inventory_quantity > 0
+      : true;
+
+    const handleAddToCart = async () => {
+      if (!selectedVariantId || !inStock) return;
+
+      setError(null);
+      setSuccess(false);
+
+      try {
+        await addItem(selectedVariantId, quantity);
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 2000);
+      } catch (err) {
+        setError('Failed to add item to cart. Please try again.');
+      }
+    };
+
+    return (
+      <div className="space-y-4">
+        {/* Quantity Selector */}
+        <div className="flex items-center gap-4">
+          <label className="text-sm font-medium">Quantity:</label>
+          <div className="flex items-center border rounded">
+            <button
+              type="button"
+              onClick={() => setQuantity(q => Math.max(1, q - 1))}
+              className="px-3 py-2 hover:bg-gray-100"
+              aria-label="Decrease quantity"
+            >
+              −
+            </button>
+            <span className="px-4 py-2 border-x">{quantity}</span>
+            <button
+              type="button"
+              onClick={() => setQuantity(q => q + 1)}
+              className="px-3 py-2 hover:bg-gray-100"
+              aria-label="Increase quantity"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        {/* Add to Cart Button */}
+        <button
+          type="button"
+          onClick={handleAddToCart}
+          disabled={isLoading || !inStock}
+          className={`
+            w-full py-3 px-6 rounded-lg font-semibold text-white
+            transition-colors duration-200
+            ${inStock
+              ? 'bg-blue-600 hover:bg-blue-700'
+              : 'bg-gray-400 cursor-not-allowed'}
+            ${isLoading ? 'opacity-50 cursor-wait' : ''}
+            ${success ? 'bg-green-600' : ''}
+          `}
+        >
+          {isLoading ? 'Adding...' : success ? 'Added to Cart!' : inStock ? 'Add to Cart' : 'Out of Stock'}
+        </button>
+
+        {/* Error Message */}
+        {error && (
+          <p className="text-red-600 text-sm">{error}</p>
+        )}
+      </div>
+    );
+  }
+  ```
+
+#### Task 4.2.7: Cart Functionality
+
+- [ ] **Task 4.2.7**: Implement cart state management and components
+
+  **src/lib/hooks/useCart.ts:**
+  ```typescript
+  import { create } from 'zustand';
+  import { persist } from 'zustand/middleware';
+  import { cartApi } from '@/lib/medusa/client';
+  import type { Cart, LineItem } from '@/types/medusa';
+
+  interface CartState {
+    cart: Cart | null;
+    isLoading: boolean;
+    error: string | null;
+
+    // Actions
+    initializeCart: () => Promise<void>;
+    addItem: (variantId: string, quantity?: number) => Promise<void>;
+    updateItem: (lineItemId: string, quantity: number) => Promise<void>;
+    removeItem: (lineItemId: string) => Promise<void>;
+    clearCart: () => void;
+
+    // Computed
+    itemCount: number;
+    subtotal: number;
+  }
+
+  const CART_ID_KEY = 'medusa_cart_id';
+
+  export const useCart = create<CartState>()(
+    persist(
+      (set, get) => ({
+        cart: null,
+        isLoading: false,
+        error: null,
+        itemCount: 0,
+        subtotal: 0,
+
+        initializeCart: async () => {
+          const storedCartId = localStorage.getItem(CART_ID_KEY);
+
+          if (storedCartId) {
+            try {
+              set({ isLoading: true });
+              const { cart } = await cartApi.retrieve(storedCartId);
+
+              // Check if cart is still valid (not completed)
+              if (cart && !cart.completed_at) {
+                set({
+                  cart,
+                  isLoading: false,
+                  itemCount: cart.items?.reduce((sum, item) => sum + item.quantity, 0) || 0,
+                  subtotal: cart.subtotal || 0,
+                });
+                return;
+              }
+            } catch (error) {
+              // Cart not found or expired, create new one
+              localStorage.removeItem(CART_ID_KEY);
+            }
+          }
+
+          // Create new cart
+          try {
+            const { cart } = await cartApi.create();
+            localStorage.setItem(CART_ID_KEY, cart.id);
+            set({ cart, isLoading: false, itemCount: 0, subtotal: 0 });
+          } catch (error) {
+            set({ error: 'Failed to create cart', isLoading: false });
+          }
+        },
+
+        addItem: async (variantId: string, quantity = 1) => {
+          const { cart } = get();
+
+          if (!cart) {
+            await get().initializeCart();
+          }
+
+          const currentCart = get().cart;
+          if (!currentCart) return;
+
+          set({ isLoading: true, error: null });
+
+          try {
+            const { cart: updatedCart } = await cartApi.addLineItem(
+              currentCart.id,
+              variantId,
+              quantity
+            );
+
+            set({
+              cart: updatedCart,
+              isLoading: false,
+              itemCount: updatedCart.items?.reduce((sum, item) => sum + item.quantity, 0) || 0,
+              subtotal: updatedCart.subtotal || 0,
+            });
+          } catch (error) {
+            set({ error: 'Failed to add item', isLoading: false });
+            throw error;
+          }
+        },
+
+        updateItem: async (lineItemId: string, quantity: number) => {
+          const { cart } = get();
+          if (!cart) return;
+
+          set({ isLoading: true, error: null });
+
+          try {
+            if (quantity <= 0) {
+              await get().removeItem(lineItemId);
+              return;
+            }
+
+            const { cart: updatedCart } = await cartApi.updateLineItem(
+              cart.id,
+              lineItemId,
+              quantity
+            );
+
+            set({
+              cart: updatedCart,
+              isLoading: false,
+              itemCount: updatedCart.items?.reduce((sum, item) => sum + item.quantity, 0) || 0,
+              subtotal: updatedCart.subtotal || 0,
+            });
+          } catch (error) {
+            set({ error: 'Failed to update item', isLoading: false });
+            throw error;
+          }
+        },
+
+        removeItem: async (lineItemId: string) => {
+          const { cart } = get();
+          if (!cart) return;
+
+          set({ isLoading: true, error: null });
+
+          try {
+            const { cart: updatedCart } = await cartApi.removeLineItem(
+              cart.id,
+              lineItemId
+            );
+
+            set({
+              cart: updatedCart,
+              isLoading: false,
+              itemCount: updatedCart.items?.reduce((sum, item) => sum + item.quantity, 0) || 0,
+              subtotal: updatedCart.subtotal || 0,
+            });
+          } catch (error) {
+            set({ error: 'Failed to remove item', isLoading: false });
+            throw error;
+          }
+        },
+
+        clearCart: () => {
+          localStorage.removeItem(CART_ID_KEY);
+          set({ cart: null, itemCount: 0, subtotal: 0 });
+        },
+      }),
+      {
+        name: 'cart-storage',
+        partialize: (state) => ({
+          // Only persist cart ID, not full cart object
+          cartId: state.cart?.id
+        }),
+      }
+    )
+  );
+  ```
+
+  **src/components/cart/CartDrawer.tsx:**
+  ```tsx
+  import { useCart } from '@/lib/hooks/useCart';
+  import CartItem from './CartItem';
+  import { formatPrice } from '@/lib/utils/price';
+
+  interface Props {
+    isOpen: boolean;
+    onClose: () => void;
+  }
+
+  export default function CartDrawer({ isOpen, onClose }: Props) {
+    const { cart, itemCount, subtotal, isLoading } = useCart();
+
+    if (!isOpen) return null;
+
+    return (
+      <>
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={onClose}
+        />
+
+        {/* Drawer */}
+        <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white z-50 shadow-xl">
+          <div className="flex flex-col h-full">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">
+                Shopping Cart ({itemCount} {itemCount === 1 ? 'item' : 'items'})
+              </h2>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded"
+                aria-label="Close cart"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Cart Items */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {!cart || cart.items?.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-500">Your cart is empty</p>
+                  <a
+                    href="/products"
+                    className="mt-4 inline-block text-blue-600 hover:underline"
+                  >
+                    Continue Shopping
+                  </a>
+                </div>
+              ) : (
+                <ul className="space-y-4">
+                  {cart.items?.map((item) => (
+                    <CartItem key={item.id} item={item} />
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Footer with Totals */}
+            {cart && cart.items && cart.items.length > 0 && (
+              <div className="border-t p-4 space-y-4">
+                <div className="flex justify-between text-lg font-semibold">
+                  <span>Subtotal</span>
+                  <span>{formatPrice(subtotal)}</span>
+                </div>
+                <p className="text-sm text-gray-500">
+                  Shipping and taxes calculated at checkout
+                </p>
+                <a
+                  href="/checkout"
+                  className="block w-full py-3 px-6 bg-blue-600 text-white text-center rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  Proceed to Checkout
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  }
+  ```
+
+  **src/components/cart/CartItem.tsx:**
+  ```tsx
+  import { useCart } from '@/lib/hooks/useCart';
+  import { formatPrice } from '@/lib/utils/price';
+  import type { LineItem } from '@/types/medusa';
+
+  interface Props {
+    item: LineItem;
+  }
+
+  export default function CartItem({ item }: Props) {
+    const { updateItem, removeItem, isLoading } = useCart();
+
+    const handleQuantityChange = (newQuantity: number) => {
+      if (newQuantity < 1) {
+        removeItem(item.id);
+      } else {
+        updateItem(item.id, newQuantity);
+      }
+    };
+
+    return (
+      <li className="flex gap-4">
+        {/* Product Image */}
+        <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+          {item.thumbnail ? (
+            <img
+              src={item.thumbnail}
+              alt={item.title}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-400">
+              No image
+            </div>
+          )}
+        </div>
+
+        {/* Item Details */}
+        <div className="flex-1 min-w-0">
+          <h3 className="font-medium truncate">{item.title}</h3>
+          {item.variant?.title && item.variant.title !== 'Default' && (
+            <p className="text-sm text-gray-500">{item.variant.title}</p>
+          )}
+
+          {/* Quantity Controls */}
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              onClick={() => handleQuantityChange(item.quantity - 1)}
+              disabled={isLoading}
+              className="w-8 h-8 rounded border hover:bg-gray-100 disabled:opacity-50"
+              aria-label="Decrease quantity"
+            >
+              −
+            </button>
+            <span className="w-8 text-center">{item.quantity}</span>
+            <button
+              onClick={() => handleQuantityChange(item.quantity + 1)}
+              disabled={isLoading}
+              className="w-8 h-8 rounded border hover:bg-gray-100 disabled:opacity-50"
+              aria-label="Increase quantity"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        {/* Price & Remove */}
+        <div className="flex flex-col items-end gap-2">
+          <span className="font-semibold">
+            {formatPrice(item.unit_price * item.quantity)}
+          </span>
+          <button
+            onClick={() => removeItem(item.id)}
+            disabled={isLoading}
+            className="text-sm text-red-600 hover:underline disabled:opacity-50"
+          >
+            Remove
+          </button>
+        </div>
+      </li>
+    );
+  }
+  ```
+
+#### Task 4.2.8: Checkout Flow
+
+- [ ] **Task 4.2.8**: Implement multi-step checkout flow
+
+  **src/pages/checkout/index.astro:**
+  ```astro
+  ---
+  import CheckoutLayout from '@/layouts/CheckoutLayout.astro';
+  import CheckoutFlow from '@/components/checkout/CheckoutFlow';
+
+  const title = 'Checkout';
+  ---
+
+  <CheckoutLayout title={title}>
+    <main class="container mx-auto px-4 py-8">
+      <CheckoutFlow client:load />
+    </main>
+  </CheckoutLayout>
+  ```
+
+  **src/components/checkout/CheckoutFlow.tsx:**
+  ```tsx
+  import { useState, useEffect } from 'react';
+  import { useCart } from '@/lib/hooks/useCart';
+  import ShippingForm from './ShippingForm';
+  import ShippingOptions from './ShippingOptions';
+  import PaymentForm from './PaymentForm';
+  import OrderSummary from './OrderSummary';
+  import { checkoutApi } from '@/lib/medusa/client';
+
+  type CheckoutStep = 'shipping' | 'shipping_method' | 'payment' | 'review';
+
+  export default function CheckoutFlow() {
+    const { cart, isLoading: cartLoading } = useCart();
+    const [currentStep, setCurrentStep] = useState<CheckoutStep>('shipping');
+    const [shippingOptions, setShippingOptions] = useState([]);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // Redirect if cart is empty
+    useEffect(() => {
+      if (!cartLoading && (!cart || !cart.items?.length)) {
+        window.location.href = '/cart';
+      }
+    }, [cart, cartLoading]);
+
+    // Fetch shipping options after address is set
+    useEffect(() => {
+      if (currentStep === 'shipping_method' && cart?.id) {
+        fetchShippingOptions();
+      }
+    }, [currentStep, cart?.id]);
+
+    const fetchShippingOptions = async () => {
+      if (!cart?.id) return;
+      try {
+        const { shipping_options } = await checkoutApi.getShippingOptions(cart.id);
+        setShippingOptions(shipping_options || []);
+      } catch (err) {
+        setError('Failed to load shipping options');
+      }
+    };
+
+    const handleShippingComplete = () => {
+      setCurrentStep('shipping_method');
+    };
+
+    const handleShippingMethodComplete = () => {
+      setCurrentStep('payment');
+    };
+
+    const handlePaymentComplete = async () => {
+      setCurrentStep('review');
+    };
+
+    const handlePlaceOrder = async () => {
+      if (!cart?.id) return;
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const { order } = await checkoutApi.completeCart(cart.id);
+
+        // Clear cart and redirect to success page
+        window.location.href = `/checkout/success?order_id=${order.id}`;
+      } catch (err) {
+        setError('Failed to place order. Please try again.');
+        setIsProcessing(false);
+      }
+    };
+
+    const steps = [
+      { id: 'shipping', label: 'Shipping', number: 1 },
+      { id: 'shipping_method', label: 'Delivery', number: 2 },
+      { id: 'payment', label: 'Payment', number: 3 },
+      { id: 'review', label: 'Review', number: 4 },
+    ];
+
+    if (cartLoading) {
+      return <div className="text-center py-12">Loading...</div>;
+    }
+
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Checkout Steps */}
+        <div className="lg:col-span-2">
+          {/* Progress Steps */}
+          <nav className="mb-8">
+            <ol className="flex items-center justify-between">
+              {steps.map((step, index) => (
+                <li
+                  key={step.id}
+                  className={`flex items-center ${
+                    index < steps.length - 1 ? 'flex-1' : ''
+                  }`}
+                >
+                  <div className={`
+                    flex items-center justify-center w-8 h-8 rounded-full
+                    ${currentStep === step.id
+                      ? 'bg-blue-600 text-white'
+                      : steps.findIndex(s => s.id === currentStep) > index
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-200 text-gray-600'
+                    }
+                  `}>
+                    {step.number}
+                  </div>
+                  <span className="ml-2 text-sm font-medium hidden sm:inline">
+                    {step.label}
+                  </span>
+                  {index < steps.length - 1 && (
+                    <div className="flex-1 mx-4 h-0.5 bg-gray-200" />
+                  )}
+                </li>
+              ))}
+            </ol>
+          </nav>
+
+          {/* Error Display */}
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+              {error}
+            </div>
+          )}
+
+          {/* Step Content */}
+          {currentStep === 'shipping' && (
+            <ShippingForm
+              cart={cart}
+              onComplete={handleShippingComplete}
+            />
+          )}
+
+          {currentStep === 'shipping_method' && (
+            <ShippingOptions
+              cart={cart}
+              options={shippingOptions}
+              onComplete={handleShippingMethodComplete}
+              onBack={() => setCurrentStep('shipping')}
+            />
+          )}
+
+          {currentStep === 'payment' && (
+            <PaymentForm
+              cart={cart}
+              onComplete={handlePaymentComplete}
+              onBack={() => setCurrentStep('shipping_method')}
+            />
+          )}
+
+          {currentStep === 'review' && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-semibold">Review Your Order</h2>
+
+              {/* Order Summary */}
+              <div className="border rounded-lg p-4">
+                <h3 className="font-medium mb-2">Shipping Address</h3>
+                <p className="text-sm text-gray-600">
+                  {cart?.shipping_address?.first_name} {cart?.shipping_address?.last_name}<br />
+                  {cart?.shipping_address?.address_1}<br />
+                  {cart?.shipping_address?.city}, {cart?.shipping_address?.province} {cart?.shipping_address?.postal_code}<br />
+                  {cart?.shipping_address?.country_code?.toUpperCase()}
+                </p>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setCurrentStep('payment')}
+                  className="px-6 py-3 border rounded-lg hover:bg-gray-50"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handlePlaceOrder}
+                  disabled={isProcessing}
+                  className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isProcessing ? 'Processing...' : 'Place Order'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Order Summary Sidebar */}
+        <div className="lg:col-span-1">
+          <OrderSummary cart={cart} />
+        </div>
+      </div>
+    );
+  }
+  ```
+
+  **src/components/checkout/ShippingForm.tsx:**
+  ```tsx
+  import { useForm } from 'react-hook-form';
+  import { zodResolver } from '@hookform/resolvers/zod';
+  import { z } from 'zod';
+  import { cartApi } from '@/lib/medusa/client';
+  import type { Cart } from '@/types/medusa';
+
+  const shippingSchema = z.object({
+    email: z.string().email('Invalid email address'),
+    first_name: z.string().min(1, 'First name is required'),
+    last_name: z.string().min(1, 'Last name is required'),
+    address_1: z.string().min(1, 'Address is required'),
+    address_2: z.string().optional(),
+    city: z.string().min(1, 'City is required'),
+    province: z.string().optional(),
+    postal_code: z.string().min(1, 'Postal code is required'),
+    country_code: z.string().min(2, 'Country is required'),
+    phone: z.string().optional(),
+  });
+
+  type ShippingFormData = z.infer<typeof shippingSchema>;
+
+  interface Props {
+    cart: Cart | null;
+    onComplete: () => void;
+  }
+
+  export default function ShippingForm({ cart, onComplete }: Props) {
+    const {
+      register,
+      handleSubmit,
+      formState: { errors, isSubmitting },
+    } = useForm<ShippingFormData>({
+      resolver: zodResolver(shippingSchema),
+      defaultValues: {
+        email: cart?.email || '',
+        first_name: cart?.shipping_address?.first_name || '',
+        last_name: cart?.shipping_address?.last_name || '',
+        address_1: cart?.shipping_address?.address_1 || '',
+        address_2: cart?.shipping_address?.address_2 || '',
+        city: cart?.shipping_address?.city || '',
+        province: cart?.shipping_address?.province || '',
+        postal_code: cart?.shipping_address?.postal_code || '',
+        country_code: cart?.shipping_address?.country_code || 'us',
+        phone: cart?.shipping_address?.phone || '',
+      },
+    });
+
+    const onSubmit = async (data: ShippingFormData) => {
+      if (!cart?.id) return;
+
+      try {
+        await cartApi.updateCart(cart.id, {
+          email: data.email,
+          shipping_address: {
+            first_name: data.first_name,
+            last_name: data.last_name,
+            address_1: data.address_1,
+            address_2: data.address_2,
+            city: data.city,
+            province: data.province,
+            postal_code: data.postal_code,
+            country_code: data.country_code,
+            phone: data.phone,
+          },
+        });
+
+        onComplete();
+      } catch (error) {
+        console.error('Failed to update shipping address:', error);
+      }
+    };
+
+    return (
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <h2 className="text-xl font-semibold">Shipping Information</h2>
+
+        {/* Email */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Email</label>
+          <input
+            type="email"
+            {...register('email')}
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          {errors.email && (
+            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+          )}
+        </div>
+
+        {/* Name Row */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">First Name</label>
+            <input
+              type="text"
+              {...register('first_name')}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+            {errors.first_name && (
+              <p className="mt-1 text-sm text-red-600">{errors.first_name.message}</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Last Name</label>
+            <input
+              type="text"
+              {...register('last_name')}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+            {errors.last_name && (
+              <p className="mt-1 text-sm text-red-600">{errors.last_name.message}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Address */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Address</label>
+          <input
+            type="text"
+            {...register('address_1')}
+            placeholder="Street address"
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+          {errors.address_1 && (
+            <p className="mt-1 text-sm text-red-600">{errors.address_1.message}</p>
+          )}
+        </div>
+
+        <div>
+          <input
+            type="text"
+            {...register('address_2')}
+            placeholder="Apartment, suite, etc. (optional)"
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {/* City, State, Zip Row */}
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">City</label>
+            <input
+              type="text"
+              {...register('city')}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+            {errors.city && (
+              <p className="mt-1 text-sm text-red-600">{errors.city.message}</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">State/Province</label>
+            <input
+              type="text"
+              {...register('province')}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Postal Code</label>
+            <input
+              type="text"
+              {...register('postal_code')}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+            {errors.postal_code && (
+              <p className="mt-1 text-sm text-red-600">{errors.postal_code.message}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Country */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Country</label>
+          <select
+            {...register('country_code')}
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="us">United States</option>
+            <option value="ca">Canada</option>
+            <option value="mx">Mexico</option>
+            <option value="gb">United Kingdom</option>
+            <option value="de">Germany</option>
+            <option value="fr">France</option>
+          </select>
+        </div>
+
+        {/* Phone (Optional) */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Phone (optional)</label>
+          <input
+            type="tel"
+            {...register('phone')}
+            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full py-3 px-6 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
+        >
+          {isSubmitting ? 'Saving...' : 'Continue to Shipping Method'}
+        </button>
+      </form>
+    );
+  }
+  ```
+
+#### Task 4.2.9: Price Formatting Utilities
+
+- [ ] **Task 4.2.9**: Create price formatting utilities
+
+  **src/lib/utils/price.ts:**
+  ```typescript
+  /**
+   * Format price from smallest unit (cents) to display format
+   * @param amount - Price in smallest currency unit (e.g., cents)
+   * @param currencyCode - ISO 4217 currency code (default: USD)
+   * @param locale - BCP 47 language tag (default: en-US)
+   */
+  export function formatPrice(
+    amount: number,
+    currencyCode: string = 'USD',
+    locale: string = 'en-US'
+  ): string {
+    // Medusa stores prices in smallest unit (cents for USD)
+    const divisor = getCurrencyDivisor(currencyCode);
+    const formattedAmount = amount / divisor;
+
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: currencyCode,
+    }).format(formattedAmount);
+  }
+
+  /**
+   * Get the divisor for converting from smallest unit to main unit
+   */
+  function getCurrencyDivisor(currencyCode: string): number {
+    // Most currencies use 100 (2 decimal places)
+    // Some currencies have different decimal places
+    const zeroDecimalCurrencies = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];
+    const threeDecimalCurrencies = ['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND'];
+
+    if (zeroDecimalCurrencies.includes(currencyCode.toUpperCase())) {
+      return 1;
+    }
+    if (threeDecimalCurrencies.includes(currencyCode.toUpperCase())) {
+      return 1000;
+    }
+    return 100;
+  }
+
+  /**
+   * Calculate percentage discount
+   */
+  export function calculateDiscount(
+    originalPrice: number,
+    discountedPrice: number
+  ): number {
+    if (originalPrice <= 0) return 0;
+    return Math.round(((originalPrice - discountedPrice) / originalPrice) * 100);
+  }
+
+  /**
+   * Format price range (e.g., "$10.00 - $20.00")
+   */
+  export function formatPriceRange(
+    minPrice: number,
+    maxPrice: number,
+    currencyCode: string = 'USD'
+  ): string {
+    if (minPrice === maxPrice) {
+      return formatPrice(minPrice, currencyCode);
+    }
+    return `${formatPrice(minPrice, currencyCode)} - ${formatPrice(maxPrice, currencyCode)}`;
+  }
+  ```
+
+#### Task 4.2.10: Environment Variables for Storefront
+
+- [ ] **Task 4.2.10**: Create storefront environment template
+
+  **.env.example (storefront):**
+  ```bash
+  # ===========================================
+  # ASTRO STOREFRONT ENVIRONMENT VARIABLES
+  # ===========================================
+
+  # Medusa Backend Configuration
+  # ------------------------------------------
+  # URL of your Medusa backend API
+  PUBLIC_MEDUSA_BACKEND_URL=http://localhost:9000
+
+  # Publishable API key from Medusa admin
+  # Generate in Admin > Settings > API Keys
+  PUBLIC_MEDUSA_PUBLISHABLE_KEY=pk_your_publishable_key
+
+  # Site Configuration
+  # ------------------------------------------
+  PUBLIC_SITE_URL=https://store.danieltarazona.com
+  PUBLIC_SITE_NAME="Daniel Tarazona Store"
+
+  # Stripe Payment (Client-side)
+  # ------------------------------------------
+  # Stripe publishable key (safe to expose)
+  PUBLIC_STRIPE_KEY=pk_test_your_stripe_publishable_key
+
+  # Analytics (Optional)
+  # ------------------------------------------
+  PUBLIC_GA_TRACKING_ID=
+  PUBLIC_PLAUSIBLE_DOMAIN=
+
+  # Feature Flags
+  # ------------------------------------------
+  PUBLIC_ENABLE_REVIEWS=false
+  PUBLIC_ENABLE_WISHLIST=false
+  PUBLIC_ENABLE_CUSTOMER_ACCOUNTS=true
+
+  # Image Configuration
+  # ------------------------------------------
+  # CDN URL for product images (if using external CDN)
+  PUBLIC_IMAGE_CDN_URL=
+  ```
+
+### Storefront Astro Configuration
+
+- [ ] **Task 4.2.11**: Configure Astro for storefront deployment
+
+  **astro.config.mjs (storefront):**
+  ```javascript
+  import { defineConfig } from 'astro/config';
+  import react from '@astrojs/react';
+  import tailwind from '@astrojs/tailwind';
+  import sitemap from '@astrojs/sitemap';
+
+  export default defineConfig({
+    // Store subdomain
+    site: 'https://store.danieltarazona.com',
+
+    // Static output with client-side hydration
+    output: 'static',
+
+    // Build configuration
+    build: {
+      inlineStylesheets: 'auto',
+    },
+
+    // Development server
+    server: {
+      port: 4322, // Different port from portfolio (4321)
+      host: true,
+    },
+
+    // Integrations
+    integrations: [
+      react({
+        // Enable React 18 features
+        experimentalReactChildren: true,
+      }),
+      tailwind({
+        applyBaseStyles: false,
+      }),
+      sitemap({
+        filter: (page) =>
+          !page.includes('/checkout/') &&
+          !page.includes('/account/'),
+      }),
+    ],
+
+    // Image optimization
+    image: {
+      service: {
+        entrypoint: 'astro/assets/services/sharp',
+      },
+      domains: ['localhost', 'medusa-server.example.com'],
+    },
+
+    // Prefetch for faster navigation
+    prefetch: {
+      prefetchAll: false,
+      defaultStrategy: 'viewport',
+    },
+
+    // Vite configuration
+    vite: {
+      optimizeDeps: {
+        include: ['@medusajs/js-sdk', 'zustand'],
+      },
+    },
+  });
+  ```
+
+### Phase 3 Task Summary: Storefront Integration
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| 4.2.1 | Create Astro storefront project | [ ] |
+| 4.2.2 | Configure storefront project structure | [ ] |
+| 4.2.3 | Install Medusa SDK and dependencies | [ ] |
+| 4.2.4 | Set up Medusa SDK client | [ ] |
+| 4.2.5 | Create product listing page | [ ] |
+| 4.2.6 | Create product detail page with variant selection | [ ] |
+| 4.2.7 | Implement cart state management and components | [ ] |
+| 4.2.8 | Implement multi-step checkout flow | [ ] |
+| 4.2.9 | Create price formatting utilities | [ ] |
+| 4.2.10 | Create storefront environment template | [ ] |
+| 4.2.11 | Configure Astro for storefront deployment | [ ] |
+
+### API Integration Quick Reference
+
+| Operation | Method | Endpoint | Description |
+|-----------|--------|----------|-------------|
+| List Products | GET | `/store/products` | Get all published products |
+| Get Product | GET | `/store/products?handle={handle}` | Get product by handle |
+| List Collections | GET | `/store/collections` | Get all collections |
+| Create Cart | POST | `/store/carts` | Create new cart session |
+| Get Cart | GET | `/store/carts/{id}` | Retrieve cart details |
+| Add Line Item | POST | `/store/carts/{id}/line-items` | Add product to cart |
+| Update Line Item | POST | `/store/carts/{id}/line-items/{item_id}` | Update quantity |
+| Remove Line Item | DELETE | `/store/carts/{id}/line-items/{item_id}` | Remove from cart |
+| Update Cart | POST | `/store/carts/{id}` | Set email, addresses |
+| Get Shipping Options | GET | `/store/shipping-options?cart_id={id}` | Available shipping methods |
+| Add Shipping Method | POST | `/store/carts/{id}/shipping-methods` | Select shipping |
+| Create Payment Session | POST | `/store/carts/{id}/payment-sessions` | Initialize payment |
+| Complete Cart | POST | `/store/carts/{id}/complete` | Finalize order |
+
 ---
 
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*
