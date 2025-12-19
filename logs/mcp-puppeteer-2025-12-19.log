@@ -50,3 +50,9 @@
 {"level":"info","message":"Puppeteer MCP Server closing","service":"mcp-puppeteer","timestamp":"2025-12-19 12:49:20.237"}
 {"level":"info","message":"Starting MCP server","service":"mcp-puppeteer","timestamp":"2025-12-19 12:49:38.915"}
 {"level":"info","message":"MCP server started successfully","service":"mcp-puppeteer","timestamp":"2025-12-19 12:49:38.916"}
+{"level":"info","message":"Puppeteer MCP Server closing","service":"mcp-puppeteer","timestamp":"2025-12-19 12:53:31.991"}
+{"level":"info","message":"Starting MCP server","service":"mcp-puppeteer","timestamp":"2025-12-19 12:53:51.819"}
+{"level":"info","message":"MCP server started successfully","service":"mcp-puppeteer","timestamp":"2025-12-19 12:53:51.821"}
+{"level":"info","message":"Puppeteer MCP Server closing","service":"mcp-puppeteer","timestamp":"2025-12-19 12:59:00.938"}
+{"level":"info","message":"Starting MCP server","service":"mcp-puppeteer","timestamp":"2025-12-19 12:59:24.342"}
+{"level":"info","message":"MCP server started successfully","service":"mcp-puppeteer","timestamp":"2025-12-19 12:59:24.343"}

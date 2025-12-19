@@ -12473,6 +12473,792 @@ jobs:
         project: store
   ```
 
+### Task 6.3: Direct Cloudflare Pages Deployment (Alternative to Coolify for Frontend)
+
+This section covers deploying Astro static sites directly to Cloudflare Pages without using Coolify. This is the **recommended approach for frontend static sites** as it leverages Cloudflare's global edge network for optimal performance, eliminates VPS costs for static hosting, and provides built-in CI/CD with Git integration.
+
+> **When to Use This Approach:**
+> - Portfolio site (`danieltarazona.com`) - Always recommended
+> - Store frontend (`store.danieltarazona.com`) - Recommended (client-side API calls to Medusa)
+> - Any pure static or client-side rendered Astro site
+>
+> **When to Use Coolify Instead:**
+> - Medusa 2.0 backend API (requires Node.js runtime)
+> - Server-side rendered (SSR) Astro with dynamic data
+> - Applications requiring persistent database connections
+
+#### Cloudflare Pages vs Coolify Comparison
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                    DEPLOYMENT OPTIONS COMPARISON                                         │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                          │
+│  OPTION A: Cloudflare Pages (Recommended for Static Sites)                              │
+│  ┌───────────────────────────────────────────────────────────────────────────────────┐  │
+│  │  PROS:                              │  CONS:                                       │  │
+│  │  ✅ Free tier (unlimited requests)  │  ⚠️  Limited to static/client-side          │  │
+│  │  ✅ Global CDN (300+ PoPs)          │  ⚠️  500 builds/month (free tier)           │  │
+│  │  ✅ Automatic Git deployments       │  ⚠️  No server-side runtime (use Workers)   │  │
+│  │  ✅ Preview deployments per branch  │                                              │  │
+│  │  ✅ Zero server maintenance         │                                              │  │
+│  │  ✅ Built-in SSL/TLS                │                                              │  │
+│  │  ✅ Instant cache invalidation      │                                              │  │
+│  └───────────────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                          │
+│  OPTION B: Coolify (Required for Backend Services)                                      │
+│  ┌───────────────────────────────────────────────────────────────────────────────────┐  │
+│  │  PROS:                              │  CONS:                                       │  │
+│  │  ✅ Full server-side capabilities   │  ⚠️  Requires VPS (~$5-10/month)            │  │
+│  │  ✅ Docker container support        │  ⚠️  Server maintenance required            │  │
+│  │  ✅ Database hosting                │  ⚠️  Single point of failure (no CDN)       │  │
+│  │  ✅ Background jobs                 │  ⚠️  Manual SSL configuration               │  │
+│  │  ✅ Persistent storage              │  ⚠️  Cold starts possible                   │  │
+│  └───────────────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                          │
+│  RECOMMENDED ARCHITECTURE:                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐    │
+│  │                                                                                  │    │
+│  │  danieltarazona.com     ──────▶  Cloudflare Pages  (Static portfolio)           │    │
+│  │                                                                                  │    │
+│  │  store.danieltarazona.com ────▶  Cloudflare Pages  (Static storefront)          │    │
+│  │         │                                                                        │    │
+│  │         │ API calls (client-side)                                               │    │
+│  │         ▼                                                                        │    │
+│  │  api.danieltarazona.com  ─────▶  Coolify/VPS       (Medusa 2.0 backend)         │    │
+│  │                                                                                  │    │
+│  └─────────────────────────────────────────────────────────────────────────────────┘    │
+│                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Task 6.3.1: Cloudflare Pages Project Creation
+
+- [ ] **Task 6.3.1**: Create Cloudflare Pages projects via Dashboard
+
+  **Method 1: Cloudflare Dashboard (Recommended for Initial Setup)**
+
+  1. Log in to [Cloudflare Dashboard](https://dash.cloudflare.com)
+  2. Navigate to **Workers & Pages** → **Pages**
+  3. Click **Create a project** → **Connect to Git**
+  4. Authorize Cloudflare to access your GitHub account
+  5. Select your repository (e.g., `DanielTarazona/portfolio`)
+
+  **Project Configuration:**
+
+  | Setting | Portfolio Site | Store Frontend |
+  |---------|----------------|----------------|
+  | Project name | `danieltarazona-portfolio` | `danieltarazona-store` |
+  | Production branch | `main` | `main` |
+  | Build command | `npm run build` | `npm run build` |
+  | Build output directory | `dist` | `dist` |
+  | Root directory | `/portfolio` (if monorepo) | `/store` (if monorepo) |
+  | Node.js version | `20` | `20` |
+
+  **Build Settings for Astro:**
+
+  ```
+  Framework preset: Astro
+  Build command: npm run build
+  Build output directory: dist
+  ```
+
+  **Environment Variables (Set in Pages Dashboard):**
+
+  | Variable | Portfolio Site | Store Frontend |
+  |----------|----------------|----------------|
+  | `NODE_VERSION` | `20` | `20` |
+  | `PUBLIC_SITE_URL` | `https://danieltarazona.com` | `https://store.danieltarazona.com` |
+  | `PUBLIC_SUPABASE_URL` | `https://xxx.supabase.co` | - |
+  | `PUBLIC_SUPABASE_ANON_KEY` | `eyJhbG...` | - |
+  | `PUBLIC_MEDUSA_BACKEND_URL` | - | `https://api.danieltarazona.com` |
+  | `PUBLIC_MEDUSA_PUBLISHABLE_KEY` | - | `pk_xxx...` |
+
+#### Task 6.3.2: Wrangler CLI Deployment Setup
+
+- [ ] **Task 6.3.2**: Configure Wrangler CLI for Cloudflare Pages deployments
+
+  **Install and Authenticate Wrangler:**
+
+  ```bash
+  # Install Wrangler globally
+  npm install -g wrangler
+
+  # Authenticate with Cloudflare
+  wrangler login
+
+  # Verify authentication
+  wrangler whoami
+  ```
+
+  **Create Pages Project via CLI:**
+
+  ```bash
+  # Create portfolio site project
+  wrangler pages project create danieltarazona-portfolio \
+    --production-branch main
+
+  # Create store frontend project
+  wrangler pages project create danieltarazona-store \
+    --production-branch main
+  ```
+
+  **Manual Deployment via CLI:**
+
+  ```bash
+  # Build and deploy portfolio site
+  cd portfolio
+  npm run build
+  wrangler pages deploy dist --project-name danieltarazona-portfolio
+
+  # Build and deploy store frontend
+  cd ../store
+  npm run build
+  wrangler pages deploy dist --project-name danieltarazona-store
+  ```
+
+  **Preview Deployment (for branches/PRs):**
+
+  ```bash
+  # Deploy preview for feature branch
+  wrangler pages deploy dist \
+    --project-name danieltarazona-portfolio \
+    --branch feature/new-gallery
+  ```
+
+#### Task 6.3.3: Git Integration Setup
+
+- [ ] **Task 6.3.3**: Configure automatic Git deployments for Cloudflare Pages
+
+  **Automatic Deployments Architecture:**
+
+  ```
+  ┌─────────────────────────────────────────────────────────────────────────────────┐
+  │                         GIT-BASED DEPLOYMENT FLOW                               │
+  └─────────────────────────────────────────────────────────────────────────────────┘
+
+        GitHub Repository                     Cloudflare Pages
+  ┌───────────────────────────┐         ┌───────────────────────────┐
+  │                           │         │                           │
+  │  main branch              │────────▶│  Production deployment    │
+  │  (push/merge)             │  auto   │  (danieltarazona.com)     │
+  │                           │         │                           │
+  │  feature/* branches       │────────▶│  Preview deployments      │
+  │  (push)                   │  auto   │  (xxx.pages.dev)          │
+  │                           │         │                           │
+  │  Pull Requests            │────────▶│  Preview + Comment        │
+  │  (open/update)            │  auto   │  (link in PR comments)    │
+  │                           │         │                           │
+  └───────────────────────────┘         └───────────────────────────┘
+  ```
+
+  **Configure Git Integration:**
+
+  1. In Cloudflare Dashboard → Pages → Your Project → Settings
+  2. Navigate to **Builds & deployments**
+  3. Configure the following:
+
+  | Setting | Value | Description |
+  |---------|-------|-------------|
+  | Production branch | `main` | Deploys to custom domain |
+  | Preview branches | `All non-production branches` | Creates preview URLs |
+  | Branch deploy controls | Include: `*` | Deploy all branches |
+  | Build comments | `Enabled` | Post preview URLs to PRs |
+
+  **Branch-Specific Build Configuration:**
+
+  Create `wrangler.toml` in your project root:
+
+  ```toml
+  # portfolio/wrangler.toml
+  name = "danieltarazona-portfolio"
+  compatibility_date = "2024-01-01"
+
+  [site]
+  bucket = "./dist"
+
+  # Production environment
+  [env.production]
+  vars = { ENVIRONMENT = "production" }
+
+  # Preview environment (non-production branches)
+  [env.preview]
+  vars = { ENVIRONMENT = "preview" }
+  ```
+
+  **Build Watch Paths (Optimize Build Triggers):**
+
+  In Cloudflare Dashboard → Pages → Settings → Build watch paths:
+
+  ```
+  # Only trigger builds when these paths change
+  portfolio/**
+  package.json
+  pnpm-lock.yaml
+  ```
+
+#### Task 6.3.4: Custom Domain Configuration
+
+- [ ] **Task 6.3.4**: Configure custom domains for Cloudflare Pages sites
+
+  **Add Custom Domain:**
+
+  ```bash
+  # Via Cloudflare Dashboard:
+  # Pages → Project → Custom domains → Set up a custom domain
+
+  # Or via API:
+  curl -X POST "https://api.cloudflare.com/client/v4/accounts/{account_id}/pages/projects/{project_name}/domains" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data '{"name": "danieltarazona.com"}'
+  ```
+
+  **Domain Configuration Table:**
+
+  | Domain | Pages Project | DNS Record |
+  |--------|---------------|------------|
+  | `danieltarazona.com` | `danieltarazona-portfolio` | CNAME → `danieltarazona-portfolio.pages.dev` |
+  | `www.danieltarazona.com` | `danieltarazona-portfolio` | CNAME → `danieltarazona-portfolio.pages.dev` |
+  | `store.danieltarazona.com` | `danieltarazona-store` | CNAME → `danieltarazona-store.pages.dev` |
+
+  **DNS Records (Auto-configured if domain is on Cloudflare):**
+
+  ```bash
+  # If domain is already on Cloudflare, DNS records are auto-configured
+  # If using external DNS, add these CNAME records:
+
+  # Portfolio site
+  # Type: CNAME | Name: @ | Target: danieltarazona-portfolio.pages.dev | Proxy: Yes
+
+  # WWW redirect
+  # Type: CNAME | Name: www | Target: danieltarazona-portfolio.pages.dev | Proxy: Yes
+
+  # Store subdomain
+  # Type: CNAME | Name: store | Target: danieltarazona-store.pages.dev | Proxy: Yes
+  ```
+
+  **SSL/TLS Configuration (Automatic):**
+
+  Cloudflare Pages automatically provisions and renews SSL certificates for custom domains. No manual configuration required.
+
+  | Feature | Status |
+  |---------|--------|
+  | SSL Certificate | ✅ Auto-provisioned |
+  | TLS 1.3 | ✅ Enabled by default |
+  | HTTPS Redirect | ✅ Automatic |
+  | HSTS | ✅ Configurable |
+
+#### Task 6.3.5: Environment Variables Management
+
+- [ ] **Task 6.3.5**: Configure environment variables for Cloudflare Pages
+
+  **Set Environment Variables via Dashboard:**
+
+  1. Cloudflare Dashboard → Pages → Project → Settings → Environment variables
+  2. Add variables for Production and Preview separately
+
+  **Set Environment Variables via Wrangler CLI:**
+
+  ```bash
+  # Set production environment variable (plaintext)
+  wrangler pages secret put PUBLIC_SITE_URL \
+    --project-name danieltarazona-portfolio
+
+  # When prompted, enter: https://danieltarazona.com
+
+  # Set production secrets (encrypted)
+  wrangler pages secret put PUBLIC_SUPABASE_ANON_KEY \
+    --project-name danieltarazona-portfolio
+
+  # List all secrets
+  wrangler pages secret list --project-name danieltarazona-portfolio
+  ```
+
+  **Environment Variable Categories:**
+
+  | Category | Prefix | Example | Notes |
+  |----------|--------|---------|-------|
+  | Public (client-safe) | `PUBLIC_` | `PUBLIC_SITE_URL` | Bundled into client JavaScript |
+  | Secret (server-only) | None | `SUPABASE_SERVICE_KEY` | Only in Cloudflare Functions |
+
+  **Portfolio Site Environment Variables:**
+
+  ```bash
+  # Production
+  PUBLIC_SITE_URL=https://danieltarazona.com
+  PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+  PUBLIC_SUPABASE_ANON_KEY=eyJhbG...
+
+  # Preview
+  PUBLIC_SITE_URL=https://xxx.danieltarazona-portfolio.pages.dev
+  PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+  PUBLIC_SUPABASE_ANON_KEY=eyJhbG...
+  ```
+
+  **Store Frontend Environment Variables:**
+
+  ```bash
+  # Production
+  PUBLIC_SITE_URL=https://store.danieltarazona.com
+  PUBLIC_MEDUSA_BACKEND_URL=https://api.danieltarazona.com
+  PUBLIC_MEDUSA_PUBLISHABLE_KEY=pk_xxx...
+
+  # Preview
+  PUBLIC_SITE_URL=https://xxx.danieltarazona-store.pages.dev
+  PUBLIC_MEDUSA_BACKEND_URL=https://api.danieltarazona.com  # Or staging API
+  PUBLIC_MEDUSA_PUBLISHABLE_KEY=pk_xxx...
+  ```
+
+#### Task 6.3.6: Cloudflare Pages Functions (Serverless API Routes)
+
+- [ ] **Task 6.3.6**: Set up Cloudflare Pages Functions for server-side logic
+
+  **Pages Functions Overview:**
+
+  Cloudflare Pages Functions allow you to add serverless API endpoints to your static site without a separate backend server. These run on Cloudflare's edge network.
+
+  ```
+  ┌─────────────────────────────────────────────────────────────────────────────────┐
+  │                    PAGES FUNCTIONS ARCHITECTURE                                  │
+  └─────────────────────────────────────────────────────────────────────────────────┘
+
+  Project Structure:
+  ┌─────────────────────────────────────────────────────────────────────────────────┐
+  │  portfolio/                                                                      │
+  │  ├── src/                    (Astro source files)                               │
+  │  │   ├── pages/                                                                 │
+  │  │   └── components/                                                            │
+  │  ├── functions/              (Cloudflare Pages Functions)                       │
+  │  │   └── api/                                                                   │
+  │  │       ├── contact.ts      → /api/contact                                     │
+  │  │       ├── newsletter.ts   → /api/newsletter                                  │
+  │  │       └── health.ts       → /api/health                                      │
+  │  ├── dist/                   (Build output)                                     │
+  │  └── package.json                                                               │
+  └─────────────────────────────────────────────────────────────────────────────────┘
+  ```
+
+  **Create Contact Form API Endpoint:**
+
+  Create `portfolio/functions/api/contact.ts`:
+
+  ```typescript
+  /**
+   * Contact Form API Endpoint
+   * Handles contact form submissions and stores in Supabase
+   *
+   * Route: POST /api/contact
+   */
+
+  interface ContactFormData {
+    name: string;
+    email: string;
+    subject?: string;
+    message: string;
+  }
+
+  interface Env {
+    SUPABASE_URL: string;
+    SUPABASE_SERVICE_KEY: string;
+  }
+
+  export const onRequestPost: PagesFunction<Env> = async (context) => {
+    const { request, env } = context;
+
+    // CORS headers
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+
+    // Handle preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    try {
+      // Parse form data
+      const formData: ContactFormData = await request.json();
+
+      // Validate required fields
+      if (!formData.name || !formData.email || !formData.message) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required fields' }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          }
+        );
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid email format' }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          }
+        );
+      }
+
+      // Store in Supabase
+      const supabaseResponse = await fetch(
+        `${env.SUPABASE_URL}/rest/v1/contact_submissions`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': env.SUPABASE_SERVICE_KEY,
+            'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            subject: formData.subject || 'Contact Form Submission',
+            message: formData.message,
+            submitted_at: new Date().toISOString(),
+          }),
+        }
+      );
+
+      if (!supabaseResponse.ok) {
+        throw new Error('Failed to store submission');
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Form submitted successfully' }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      );
+    } catch (error) {
+      console.error('Contact form error:', error);
+      return new Response(
+        JSON.stringify({ error: 'Internal server error' }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      );
+    }
+  };
+  ```
+
+  **Create Health Check Endpoint:**
+
+  Create `portfolio/functions/api/health.ts`:
+
+  ```typescript
+  /**
+   * Health Check Endpoint
+   * Route: GET /api/health
+   */
+
+  export const onRequestGet: PagesFunction = async () => {
+    return new Response(
+      JSON.stringify({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        service: 'danieltarazona-portfolio',
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  };
+  ```
+
+  **Configure Functions Secrets:**
+
+  ```bash
+  # Set server-only secrets for Pages Functions
+  wrangler pages secret put SUPABASE_URL --project-name danieltarazona-portfolio
+  wrangler pages secret put SUPABASE_SERVICE_KEY --project-name danieltarazona-portfolio
+  ```
+
+#### Task 6.3.7: Build Configuration and Optimization
+
+- [ ] **Task 6.3.7**: Optimize Astro build configuration for Cloudflare Pages
+
+  **Astro Configuration for Cloudflare Pages:**
+
+  Update `portfolio/astro.config.mjs`:
+
+  ```javascript
+  import { defineConfig } from 'astro/config';
+  import cloudflare from '@astrojs/cloudflare';
+  import sitemap from '@astrojs/sitemap';
+
+  export default defineConfig({
+    // Site URL for sitemap and canonical URLs
+    site: 'https://danieltarazona.com',
+
+    // Output mode: 'static' for pure static, 'server' for SSR
+    output: 'static',  // Use 'static' for Cloudflare Pages static hosting
+
+    // Use Cloudflare adapter only if using SSR features
+    // adapter: cloudflare(),  // Uncomment for SSR mode
+
+    integrations: [
+      sitemap(),
+    ],
+
+    build: {
+      // Inline stylesheets smaller than this limit
+      inlineStylesheets: 'auto',
+    },
+
+    vite: {
+      build: {
+        // Optimize chunk size for edge delivery
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              // Split vendor chunks for better caching
+              vendor: ['astro'],
+            },
+          },
+        },
+      },
+    },
+  });
+  ```
+
+  **Store Frontend Configuration:**
+
+  Update `store/astro.config.mjs`:
+
+  ```javascript
+  import { defineConfig } from 'astro/config';
+  import react from '@astrojs/react';
+  import tailwind from '@astrojs/tailwind';
+  import sitemap from '@astrojs/sitemap';
+
+  export default defineConfig({
+    site: 'https://store.danieltarazona.com',
+    output: 'static',
+
+    integrations: [
+      react(),
+      tailwind(),
+      sitemap(),
+    ],
+
+    vite: {
+      define: {
+        // Make env vars available at build time
+        'import.meta.env.PUBLIC_MEDUSA_BACKEND_URL': JSON.stringify(
+          process.env.PUBLIC_MEDUSA_BACKEND_URL
+        ),
+      },
+    },
+  });
+  ```
+
+  **Build Output Optimization:**
+
+  Create `portfolio/_headers` file for custom headers:
+
+  ```
+  # Cache static assets for 1 year
+  /assets/*
+    Cache-Control: public, max-age=31536000, immutable
+
+  # Cache images for 1 week
+  /images/*
+    Cache-Control: public, max-age=604800
+
+  # Security headers for all pages
+  /*
+    X-Content-Type-Options: nosniff
+    X-Frame-Options: DENY
+    X-XSS-Protection: 1; mode=block
+    Referrer-Policy: strict-origin-when-cross-origin
+    Permissions-Policy: camera=(), microphone=(), geolocation=()
+  ```
+
+  Create `portfolio/_redirects` file for URL redirects:
+
+  ```
+  # WWW to non-WWW redirect
+  https://www.danieltarazona.com/* https://danieltarazona.com/:splat 301
+
+  # Legacy URL redirects
+  /portfolio/* /gallery/:splat 301
+  /blog /articles 301
+
+  # SPA fallback (if using client-side routing)
+  # /* /index.html 200
+  ```
+
+#### Task 6.3.8: Deployment Monitoring and Analytics
+
+- [ ] **Task 6.3.8**: Set up monitoring and analytics for Cloudflare Pages deployments
+
+  **Cloudflare Web Analytics (Free):**
+
+  1. Cloudflare Dashboard → Analytics → Web Analytics
+  2. Click **Add a site** → Select your Pages project
+  3. Copy the tracking snippet to your Astro layout
+
+  ```html
+  <!-- Add to portfolio/src/layouts/BaseLayout.astro -->
+  <script
+    defer
+    src="https://static.cloudflareinsights.com/beacon.min.js"
+    data-cf-beacon='{"token": "YOUR_SITE_TOKEN"}'
+  ></script>
+  ```
+
+  **Deployment Notifications:**
+
+  Configure deployment notifications in Cloudflare Dashboard:
+
+  1. Pages → Project → Settings → Notifications
+  2. Add notification channels:
+
+  | Channel | Trigger | Configuration |
+  |---------|---------|---------------|
+  | Email | Deploy success/failure | team@danieltarazona.com |
+  | Webhook | Deploy success/failure | Discord/Slack webhook URL |
+
+  **Monitor Build Logs:**
+
+  ```bash
+  # View recent deployments
+  wrangler pages deployment list --project-name danieltarazona-portfolio
+
+  # View specific deployment logs
+  wrangler pages deployment tail --project-name danieltarazona-portfolio
+  ```
+
+  **Real-time Logs for Pages Functions:**
+
+  ```bash
+  # Stream logs from Pages Functions
+  wrangler pages deployment tail \
+    --project-name danieltarazona-portfolio \
+    --format pretty
+  ```
+
+#### Task 6.3.9: Preview Deployments and Branch Protection
+
+- [ ] **Task 6.3.9**: Configure preview deployments and branch protection rules
+
+  **Preview Deployment URLs:**
+
+  Cloudflare Pages automatically creates preview deployments for each branch:
+
+  | Branch | Preview URL |
+  |--------|-------------|
+  | `feature/gallery` | `feature-gallery.danieltarazona-portfolio.pages.dev` |
+  | `fix/contact-form` | `fix-contact-form.danieltarazona-portfolio.pages.dev` |
+  | PR #123 | `pr-123.danieltarazona-portfolio.pages.dev` |
+
+  **Branch Protection Configuration:**
+
+  1. Cloudflare Dashboard → Pages → Settings → Builds & deployments
+  2. Configure branch controls:
+
+  | Setting | Value |
+  |---------|-------|
+  | Production branch | `main` |
+  | Preview branch exclusions | `dependabot/*`, `renovate/*` |
+  | Skip deployments pattern | `[skip ci]`, `[skip deploy]` |
+
+  **Access Control for Previews:**
+
+  Enable Cloudflare Access for preview deployments (optional):
+
+  1. Zero Trust Dashboard → Access → Applications → Add an application
+  2. Select **Self-hosted** → Configure for `*.danieltarazona-portfolio.pages.dev`
+  3. Add policy: Allow only team members
+
+  ```
+  # Access Policy Example
+  Application: Preview Deployments
+  Domain: *.danieltarazona-portfolio.pages.dev
+  Policy: Allow
+  - Email ending in: @danieltarazona.com
+  - GitHub organization: DanielTarazona
+  ```
+
+#### Task 6.3.10: Rollback and Deployment Management
+
+- [ ] **Task 6.3.10**: Set up deployment rollback procedures
+
+  **View Deployment History:**
+
+  ```bash
+  # List all deployments
+  wrangler pages deployment list \
+    --project-name danieltarazona-portfolio
+
+  # Output example:
+  # Deployment ID          | Branch | Status  | Created
+  # abc123-def456-...      | main   | Success | 2024-01-15 10:30
+  # xyz789-uvw012-...      | main   | Success | 2024-01-14 15:45
+  ```
+
+  **Rollback to Previous Deployment:**
+
+  Via Cloudflare Dashboard:
+  1. Pages → Project → Deployments
+  2. Find the deployment to restore
+  3. Click **...** → **Rollback to this deploy**
+
+  Via API:
+
+  ```bash
+  # Rollback to specific deployment
+  curl -X POST \
+    "https://api.cloudflare.com/client/v4/accounts/{account_id}/pages/projects/{project_name}/deployments/{deployment_id}/rollback" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+  ```
+
+  **Deployment Retention:**
+
+  | Deployment Type | Retention Period |
+  |-----------------|------------------|
+  | Production | 30 days (configurable) |
+  | Preview | 7 days (auto-cleanup) |
+  | Aliased | Indefinite |
+
+### Task 6.3: Cloudflare Pages Deployment - Task Summary
+
+| Task ID | Description | Status |
+|---------|-------------|--------|
+| 6.3.1 | Create Cloudflare Pages projects via Dashboard | [ ] |
+| 6.3.2 | Configure Wrangler CLI for deployments | [ ] |
+| 6.3.3 | Configure automatic Git deployments | [ ] |
+| 6.3.4 | Configure custom domains | [ ] |
+| 6.3.5 | Set up environment variables | [ ] |
+| 6.3.6 | Set up Cloudflare Pages Functions | [ ] |
+| 6.3.7 | Optimize Astro build configuration | [ ] |
+| 6.3.8 | Set up monitoring and analytics | [ ] |
+| 6.3.9 | Configure preview deployments and branch protection | [ ] |
+| 6.3.10 | Set up deployment rollback procedures | [ ] |
+
+### Cloudflare Pages Resources & Documentation
+
+| Resource | URL |
+|----------|-----|
+| Cloudflare Pages Documentation | https://developers.cloudflare.com/pages |
+| Pages Functions | https://developers.cloudflare.com/pages/platform/functions |
+| Astro + Cloudflare Guide | https://docs.astro.build/en/guides/deploy/cloudflare/ |
+| Wrangler CLI Reference | https://developers.cloudflare.com/workers/wrangler/commands |
+| Custom Domains | https://developers.cloudflare.com/pages/platform/custom-domains |
+| Build Configuration | https://developers.cloudflare.com/pages/platform/build-configuration |
+| Preview Deployments | https://developers.cloudflare.com/pages/platform/preview-deployments |
+| Pages Limits | https://developers.cloudflare.com/pages/platform/limits |
+
 ### Phase 5: Deployment & Orchestration - Task Summary
 
 | Task ID | Description | Status |
@@ -12501,6 +13287,16 @@ jobs:
 | 6.2.8 | Configure deployment notifications | [ ] |
 | 6.2.9 | Create scheduled maintenance workflows | [ ] |
 | 6.2.10 | Implement GitHub Actions best practices | [ ] |
+| 6.3.1 | Create Cloudflare Pages projects via Dashboard | [ ] |
+| 6.3.2 | Configure Wrangler CLI for deployments | [ ] |
+| 6.3.3 | Configure automatic Git deployments | [ ] |
+| 6.3.4 | Configure custom domains | [ ] |
+| 6.3.5 | Set up environment variables | [ ] |
+| 6.3.6 | Set up Cloudflare Pages Functions | [ ] |
+| 6.3.7 | Optimize Astro build configuration | [ ] |
+| 6.3.8 | Set up monitoring and analytics | [ ] |
+| 6.3.9 | Configure preview deployments and branch protection | [ ] |
+| 6.3.10 | Set up deployment rollback procedures | [ ] |
 
 ### Coolify Resources & Documentation
 

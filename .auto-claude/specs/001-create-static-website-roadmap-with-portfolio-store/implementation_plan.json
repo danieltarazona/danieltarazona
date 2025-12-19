@@ -333,7 +333,7 @@
           "id": "6.1",
           "title": "Document Coolify installation and configuration",
           "description": "Add tasks for Coolify self-hosted installation on VPS, Docker configuration, project deployment, and environment management",
-          "status": "pending",
+          "status": "completed",
           "estimated_minutes": 20,
           "files_to_create": [],
           "files_to_modify": [
@@ -344,13 +344,15 @@
             "Docker requirements specified",
             "Project deployment workflow explained",
             "Environment variables management included"
-          ]
+          ],
+          "notes": "Added comprehensive Phase 5: Deployment & Orchestration section to ROADMAP.md. Includes: (1) Coolify deployment architecture diagram showing VPS structure with Docker, Traefik, and Cloudflare Tunnel integration, (2) Why Coolify benefits table covering self-hosted, Docker native, Git integration, SSL, multi-service, database management, env vars, monitoring, backups, and cost-effectiveness, (3) 14 detailed subtasks (6.1.1-6.1.14) covering: VPS prerequisites with requirements and setup scripts, Docker Engine installation with daemon config, Coolify installation (one-line and manual), initial web interface configuration, GitHub integration via App/Deploy Keys/PAT, Medusa 2.0 deployment with Dockerfile, PostgreSQL database config (Coolify managed or Supabase), Redis cache configuration, environment variables and secrets management, deployment settings with webhooks, Cloudflare Tunnel integration, backup configuration with S3/R2 and cron, monitoring and logging, horizontal scaling options, (4) Phase 5 task summary table, (5) Coolify resources and documentation links. Committed as d959664.",
+          "updated_at": "2025-12-19T17:53:18.860425+00:00"
         },
         {
           "id": "6.2",
           "title": "Document CI/CD pipeline with GitHub Actions",
           "description": "Add tasks for GitHub Actions workflow setup following existing snake.yml pattern, automated deployments to Coolify/Cloudflare Pages",
-          "status": "pending",
+          "status": "completed",
           "estimated_minutes": 15,
           "files_to_create": [],
           "files_to_modify": [
@@ -360,7 +362,9 @@
             "GitHub Actions workflow structure documented",
             "Deployment triggers explained",
             "Build and deploy steps included"
-          ]
+          ],
+          "notes": "Added comprehensive Task 6.2 section with 10 subtasks covering GitHub Actions workflow setup, Cloudflare Pages deployment, Coolify webhooks, CI/CD pipelines, notifications, maintenance workflows, and best practices. Follows existing snake.yml pattern. Added GitHub Actions Resources documentation section.",
+          "updated_at": "2025-12-19T17:58:40.101417+00:00"
         },
         {
           "id": "6.3",
@@ -602,7 +606,7 @@
       "GitHub account"
     ]
   },
-  "last_updated": "2025-12-19T17:49:05.656216+00:00",
+  "last_updated": "2025-12-19T17:58:40.101427+00:00",
   "status": "in_progress",
   "planStatus": "in_progress",
   "updated_at": "2025-12-19T17:14:17.488Z",
