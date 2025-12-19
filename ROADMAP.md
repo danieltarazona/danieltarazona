@@ -14161,6 +14161,643 @@ Ensure all `.env` files are excluded from version control:
 !.env.example
 ```
 
+#### API Key Security
+
+Proper API key management is critical for protecting your services and preventing unauthorized access.
+
+**API Key Types and Security Levels:**
+
+| Key Type | Security Level | Client Exposure | Use Case |
+|----------|---------------|-----------------|----------|
+| **Publishable Keys** | Low | Safe | Client-side API calls (Stripe `pk_*`, Medusa `pk_*`) |
+| **Secret/Private Keys** | Critical | Never expose | Server-side only (Stripe `sk_*`, database credentials) |
+| **Service Role Keys** | Critical | Never expose | Admin operations (Supabase service role) |
+| **API Tokens** | High | Never expose | CI/CD, automation (Cloudflare, GitHub tokens) |
+| **Webhook Secrets** | High | Never expose | Webhook signature verification |
+
+**API Key Protection Strategies:**
+
+```typescript
+// ❌ NEVER: Hard-coded API keys
+const stripe = new Stripe('sk_live_abc123');
+
+// ✅ CORRECT: Environment variables
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+// ❌ NEVER: API keys in frontend code
+// This exposes your key in the browser
+const response = await fetch('/api/data', {
+  headers: { 'Authorization': 'Bearer sk_secret_key' }
+});
+
+// ✅ CORRECT: Use publishable keys or proxy through backend
+const response = await fetch('/api/data', {
+  headers: { 'Authorization': 'Bearer pk_publishable_key' }
+});
+```
+
+**Key Rotation Schedule:**
+
+| Key Type | Rotation Frequency | Action on Compromise |
+|----------|-------------------|---------------------|
+| Database credentials | Every 90 days | Immediate rotation |
+| API tokens (CI/CD) | Every 60 days | Immediate revocation |
+| JWT secrets | Every 180 days | Rolling update strategy |
+| Webhook secrets | Every 90 days | Update all integrations |
+| Service role keys | Every 90 days | Immediate rotation |
+
+**Key Rotation Checklist:**
+
+```bash
+# 1. Generate new keys
+NEW_JWT_SECRET=$(openssl rand -hex 64)
+NEW_COOKIE_SECRET=$(openssl rand -hex 64)
+
+# 2. Update secrets in all environments
+# For Coolify
+coolify env:set JWT_SECRET=$NEW_JWT_SECRET
+coolify env:set COOKIE_SECRET=$NEW_COOKIE_SECRET
+
+# For Cloudflare Workers
+wrangler secret put JWT_SECRET
+wrangler secret put COOKIE_SECRET
+
+# For GitHub Actions - update via web UI or CLI
+gh secret set JWT_SECRET --body "$NEW_JWT_SECRET"
+
+# 3. Deploy changes
+# 4. Verify functionality
+# 5. Revoke old keys
+# 6. Update documentation/runbooks
+```
+
+#### Secrets Management Strategies
+
+Different deployment scenarios require different secrets management approaches. Choose the strategy that matches your infrastructure complexity.
+
+**Strategy 1: Environment Variables (Simple Deployments)**
+
+Best for: Single-service deployments, small teams, development environments.
+
+```bash
+# Local development: .env file
+DATABASE_URL=postgresql://user:pass@localhost:5432/db
+JWT_SECRET=dev_secret_not_for_production
+
+# Production: Set via platform UI or CLI
+# Coolify
+coolify env:set DATABASE_URL="postgresql://user:pass@host:5432/db"
+
+# Cloudflare Workers
+wrangler secret put DATABASE_URL
+
+# Cloudflare Pages
+# Set in Cloudflare Dashboard > Pages > Settings > Environment variables
+```
+
+**Strategy 2: Secrets Manager (Production Systems)**
+
+Best for: Multi-service architectures, compliance requirements, team collaboration.
+
+```typescript
+// Using Doppler (recommended for this stack)
+// Install: npm install @doppler/node-sdk
+
+import { DopplerClient } from '@doppler/node-sdk';
+
+const doppler = new DopplerClient({
+  token: process.env.DOPPLER_TOKEN,
+  project: 'danieltarazona',
+  config: process.env.NODE_ENV === 'production' ? 'prd' : 'dev'
+});
+
+const secrets = await doppler.secrets.list();
+const dbUrl = secrets['DATABASE_URL'];
+```
+
+**Strategy 3: HashiCorp Vault (Enterprise/Self-Hosted)**
+
+Best for: Self-hosted infrastructure, complex compliance, dynamic secrets.
+
+```bash
+# Initialize Vault (one-time setup)
+vault operator init -key-shares=5 -key-threshold=3
+
+# Store secrets
+vault kv put secret/danieltarazona/medusa \
+  DATABASE_URL="postgresql://..." \
+  JWT_SECRET="..." \
+  COOKIE_SECRET="..."
+
+# Retrieve secrets in application
+vault kv get -field=DATABASE_URL secret/danieltarazona/medusa
+```
+
+**Secrets Management Comparison:**
+
+| Feature | Env Variables | Doppler | Vault | 1Password |
+|---------|---------------|---------|-------|-----------|
+| **Complexity** | Low | Medium | High | Low |
+| **Cost** | Free | Free tier | Self-hosted | $4/user/mo |
+| **Audit Logging** | No | Yes | Yes | Yes |
+| **Access Control** | Basic | RBAC | Advanced | RBAC |
+| **Secret Rotation** | Manual | Automated | Dynamic | Manual |
+| **CI/CD Integration** | Basic | Native | Native | Native |
+| **Team Collaboration** | Limited | Excellent | Excellent | Excellent |
+| **Recommended For** | Solo dev | Small teams | Enterprise | Small teams |
+
+**Secrets Hierarchy for This Project:**
+
+```
+danieltarazona/
+├── development/
+│   ├── portfolio/      # Astro portfolio dev secrets
+│   ├── storefront/     # Astro storefront dev secrets
+│   ├── medusa/         # Medusa backend dev secrets
+│   └── functions/      # Deno/Workers dev secrets
+├── staging/
+│   ├── portfolio/
+│   ├── storefront/
+│   ├── medusa/
+│   └── functions/
+└── production/
+    ├── portfolio/
+    ├── storefront/
+    ├── medusa/
+    └── functions/
+```
+
+#### Security Headers Configuration
+
+Security headers protect your application from common web vulnerabilities. Configure them at both the CDN (Cloudflare) and application level.
+
+**Essential Security Headers:**
+
+| Header | Purpose | Recommended Value |
+|--------|---------|------------------|
+| `Strict-Transport-Security` | Force HTTPS | `max-age=31536000; includeSubDomains; preload` |
+| `Content-Security-Policy` | Prevent XSS/injection | See detailed config below |
+| `X-Content-Type-Options` | Prevent MIME sniffing | `nosniff` |
+| `X-Frame-Options` | Prevent clickjacking | `DENY` or `SAMEORIGIN` |
+| `X-XSS-Protection` | Legacy XSS protection | `1; mode=block` |
+| `Referrer-Policy` | Control referrer info | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | Control browser features | See detailed config below |
+| `Cross-Origin-Opener-Policy` | Isolate browsing context | `same-origin` |
+| `Cross-Origin-Embedder-Policy` | Control cross-origin embeds | `require-corp` |
+| `Cross-Origin-Resource-Policy` | Protect resources | `same-origin` |
+
+**Cloudflare Security Headers Configuration:**
+
+```bash
+# Configure security headers via Cloudflare API
+# Add to Transform Rules in Cloudflare Dashboard or via API
+
+# Create a Transform Rule for response headers
+curl -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/rulesets" \
+  -H "Authorization: Bearer $CF_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "name": "Security Headers",
+    "kind": "zone",
+    "phase": "http_response_headers_transform",
+    "rules": [
+      {
+        "action": "rewrite",
+        "action_parameters": {
+          "headers": {
+            "Strict-Transport-Security": {
+              "operation": "set",
+              "value": "max-age=31536000; includeSubDomains; preload"
+            },
+            "X-Content-Type-Options": {
+              "operation": "set",
+              "value": "nosniff"
+            },
+            "X-Frame-Options": {
+              "operation": "set",
+              "value": "DENY"
+            },
+            "Referrer-Policy": {
+              "operation": "set",
+              "value": "strict-origin-when-cross-origin"
+            },
+            "Permissions-Policy": {
+              "operation": "set",
+              "value": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+            }
+          }
+        },
+        "expression": "true",
+        "enabled": true
+      }
+    ]
+  }'
+```
+
+**Cloudflare Pages `_headers` File:**
+
+Create `portfolio/_headers` and `storefront/_headers`:
+
+```
+# Security headers for all pages
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.danieltarazona.com https://*.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+
+# Cache static assets
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# No cache for HTML pages
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+```
+
+**Content Security Policy Breakdown:**
+
+```
+Content-Security-Policy:
+  default-src 'self';                              # Default to same origin
+  script-src 'self' 'unsafe-inline'                # Scripts from self + inline
+    https://static.cloudflareinsights.com;         # Cloudflare analytics
+  style-src 'self' 'unsafe-inline';                # Styles from self + inline
+  img-src 'self' data: https:;                     # Images from self, data URIs, HTTPS
+  font-src 'self' data:;                           # Fonts from self, data URIs
+  connect-src 'self'                               # API connections
+    https://api.danieltarazona.com                 # Medusa API
+    https://*.supabase.co;                         # Supabase services
+  frame-ancestors 'none';                          # Prevent framing (clickjacking)
+  base-uri 'self';                                 # Restrict base element
+  form-action 'self';                              # Restrict form submissions
+```
+
+**CSP for E-Commerce Store (with Stripe):**
+
+```
+Content-Security-Policy:
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' https://js.stripe.com https://static.cloudflareinsights.com;
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' data: https: blob:;
+  font-src 'self' data:;
+  connect-src 'self' https://api.danieltarazona.com https://*.supabase.co https://api.stripe.com;
+  frame-src https://js.stripe.com https://hooks.stripe.com;
+  frame-ancestors 'none';
+  base-uri 'self';
+  form-action 'self' https://checkout.stripe.com;
+```
+
+**Astro Middleware for Security Headers:**
+
+```typescript
+// src/middleware.ts
+import { defineMiddleware } from 'astro/middleware';
+
+export const onRequest = defineMiddleware(async (context, next) => {
+  const response = await next();
+
+  // Security headers (for non-Cloudflare deployments)
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Permissions-Policy',
+    'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()');
+
+  // CSP header
+  response.headers.set('Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; " +
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; " +
+    "connect-src 'self' https://api.danieltarazona.com https://*.supabase.co; " +
+    "frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+
+  return response;
+});
+```
+
+#### Authentication Considerations
+
+Proper authentication architecture protects your APIs and administrative interfaces.
+
+**Authentication Architecture Overview:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         AUTHENTICATION ARCHITECTURE                              │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│   PUBLIC SITE    │     │   STOREFRONT     │     │   ADMIN PANEL    │
+│ danieltarazona   │     │ store.daniel...  │     │ admin.daniel...  │
+│   No auth req.   │     │ Customer auth    │     │ Admin auth req.  │
+└────────┬─────────┘     └────────┬─────────┘     └────────┬─────────┘
+         │                        │                        │
+         │                        │                        │
+         ▼                        ▼                        ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         CLOUDFLARE ACCESS (Zero Trust)                           │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │  • IP Allowlisting                                                       │   │
+│  │  • Email OTP / SSO (Google, GitHub)                                      │   │
+│  │  • Device Posture Checks                                                 │   │
+│  │  • Session Duration Controls                                             │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+         │                        │                        │
+         ▼                        ▼                        ▼
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│   Static Files   │     │   Medusa API     │     │   Medusa Admin   │
+│   No auth check  │     │ Customer JWT     │     │ Admin JWT/RBAC   │
+└──────────────────┘     └──────────────────┘     └──────────────────┘
+```
+
+**Medusa 2.0 Authentication Configuration:**
+
+```typescript
+// medusa-config.ts - Authentication setup
+import { defineConfig, Modules } from '@medusajs/framework/utils';
+
+export default defineConfig({
+  projectConfig: {
+    // ... other config
+  },
+  modules: {
+    // Customer authentication (storefront)
+    [Modules.AUTH]: {
+      resolve: '@medusajs/auth',
+      options: {
+        providers: [
+          // Email/password auth
+          {
+            resolve: '@medusajs/auth-emailpass',
+            id: 'emailpass',
+            options: {
+              hashConfig: {
+                // bcrypt configuration
+                rounds: 10
+              }
+            }
+          },
+          // Social login (optional)
+          {
+            resolve: '@medusajs/auth-google',
+            id: 'google',
+            options: {
+              clientId: process.env.GOOGLE_CLIENT_ID,
+              clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+              callbackUrl: `${process.env.MEDUSA_BACKEND_URL}/auth/google/callback`
+            }
+          }
+        ]
+      }
+    }
+  },
+  // Admin CORS - restrict to admin domain
+  admin: {
+    cors: process.env.ADMIN_CORS || 'https://admin.danieltarazona.com'
+  },
+  // Store CORS - allow storefront
+  store: {
+    cors: process.env.STORE_CORS || 'https://store.danieltarazona.com'
+  }
+});
+```
+
+**JWT Token Security Best Practices:**
+
+```typescript
+// JWT configuration best practices
+const jwtConfig = {
+  // Token expiration times
+  accessTokenExpiry: '15m',      // Short-lived access tokens
+  refreshTokenExpiry: '7d',      // Longer refresh tokens
+
+  // Required claims
+  requiredClaims: ['sub', 'iat', 'exp', 'aud'],
+
+  // Audience validation
+  audience: [
+    'https://api.danieltarazona.com',
+    'https://store.danieltarazona.com'
+  ],
+
+  // Issuer validation
+  issuer: 'https://api.danieltarazona.com',
+
+  // Algorithm (RS256 for production, HS256 for simpler setups)
+  algorithm: 'HS256'
+};
+
+// Token validation middleware
+async function validateToken(token: string): Promise<TokenPayload | null> {
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: [jwtConfig.algorithm],
+      audience: jwtConfig.audience,
+      issuer: jwtConfig.issuer
+    });
+
+    return payload as TokenPayload;
+  } catch (error) {
+    // Log for security monitoring (don't expose details)
+    console.error('Token validation failed:', error.name);
+    return null;
+  }
+}
+```
+
+**Cloudflare Access for Admin Protection:**
+
+```bash
+# Configure Cloudflare Access for admin.danieltarazona.com
+
+# 1. Create an Access Application
+curl -X POST "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/access/apps" \
+  -H "Authorization: Bearer $CF_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "name": "Daniel Tarazona Admin",
+    "domain": "admin.danieltarazona.com",
+    "type": "self_hosted",
+    "session_duration": "24h",
+    "auto_redirect_to_identity": false,
+    "allowed_idps": ["google"],
+    "cors_headers": {
+      "allow_all_headers": true,
+      "allow_all_origins": false,
+      "allowed_origins": ["https://admin.danieltarazona.com"]
+    }
+  }'
+
+# 2. Create an Access Policy (allow specific emails)
+curl -X POST "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/access/apps/{app_id}/policies" \
+  -H "Authorization: Bearer $CF_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "name": "Admin Access Policy",
+    "decision": "allow",
+    "include": [
+      {
+        "email": {
+          "email": "daniel@danieltarazona.com"
+        }
+      }
+    ],
+    "require": [
+      {
+        "login_method": {
+          "id": "google"
+        }
+      }
+    ]
+  }'
+```
+
+**Supabase Row Level Security (RLS) for Contact Form:**
+
+```sql
+-- Enable RLS on tables
+ALTER TABLE contact_submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE newsletter_signups ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Allow public insert (for form submissions)
+CREATE POLICY "Allow public insert" ON contact_submissions
+  FOR INSERT
+  TO public
+  WITH CHECK (true);
+
+-- Policy: Only authenticated admins can read
+CREATE POLICY "Admin read only" ON contact_submissions
+  FOR SELECT
+  TO authenticated
+  USING (
+    auth.jwt() ->> 'email' IN (
+      SELECT email FROM admin_users WHERE is_active = true
+    )
+  );
+
+-- Policy: Prevent updates and deletes from non-admins
+CREATE POLICY "Admin update only" ON contact_submissions
+  FOR UPDATE
+  TO authenticated
+  USING (
+    auth.jwt() ->> 'email' IN (
+      SELECT email FROM admin_users WHERE is_active = true
+    )
+  );
+
+-- Rate limiting function
+CREATE OR REPLACE FUNCTION check_submission_rate_limit(client_ip TEXT)
+RETURNS BOOLEAN AS $$
+DECLARE
+  recent_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO recent_count
+  FROM contact_submissions
+  WHERE ip_address = client_ip
+    AND created_at > NOW() - INTERVAL '1 hour';
+
+  -- Allow max 5 submissions per hour per IP
+  RETURN recent_count < 5;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+**API Authentication Patterns:**
+
+| Endpoint Type | Auth Method | Rate Limit | CORS |
+|--------------|-------------|------------|------|
+| Public store API | Publishable key | 1000/min | `store.danieltarazona.com` |
+| Customer API | JWT (customer) | 100/min | `store.danieltarazona.com` |
+| Admin API | JWT (admin) | 500/min | `admin.danieltarazona.com` |
+| Webhook endpoints | HMAC signature | No limit | N/A |
+| Contact form | None (RLS + rate limit) | 5/hour/IP | `danieltarazona.com` |
+
+**Session Security Checklist:**
+
+- [ ] Use `httpOnly` cookies for session tokens
+- [ ] Set `secure` flag on cookies (HTTPS only)
+- [ ] Implement `sameSite=strict` or `sameSite=lax`
+- [ ] Set appropriate session expiration times
+- [ ] Implement session invalidation on logout
+- [ ] Store only session ID in cookies, not user data
+- [ ] Implement CSRF protection for state-changing operations
+- [ ] Log authentication events for security monitoring
+
+**Cookie Configuration Example:**
+
+```typescript
+// Secure cookie configuration for sessions
+const cookieConfig = {
+  httpOnly: true,          // Prevent JavaScript access
+  secure: true,            // HTTPS only
+  sameSite: 'strict',      // Prevent CSRF
+  maxAge: 60 * 60 * 24 * 7, // 7 days
+  path: '/',
+  domain: '.danieltarazona.com'  // Allow subdomains
+};
+
+// Setting session cookie
+response.headers.set(
+  'Set-Cookie',
+  `session=${sessionId}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${7 * 24 * 60 * 60}; Domain=.danieltarazona.com`
+);
+```
+
+#### Security Monitoring and Incident Response
+
+Implement security monitoring to detect and respond to threats.
+
+**Logging Configuration:**
+
+```typescript
+// Security event logging
+interface SecurityEvent {
+  timestamp: string;
+  eventType: 'auth_success' | 'auth_failure' | 'rate_limit' | 'suspicious_activity';
+  userId?: string;
+  ipAddress: string;
+  userAgent: string;
+  resource: string;
+  details: Record<string, unknown>;
+}
+
+async function logSecurityEvent(event: SecurityEvent): Promise<void> {
+  // Log to Supabase for analysis
+  await supabase.from('security_logs').insert({
+    event_type: event.eventType,
+    user_id: event.userId,
+    ip_address: event.ipAddress,
+    user_agent: event.userAgent,
+    resource: event.resource,
+    details: event.details,
+    created_at: event.timestamp
+  });
+
+  // Alert on suspicious activity
+  if (event.eventType === 'suspicious_activity') {
+    await sendSecurityAlert(event);
+  }
+}
+```
+
+**Security Monitoring Checklist:**
+
+- [ ] Log all authentication attempts (success/failure)
+- [ ] Monitor rate limit violations
+- [ ] Track unusual access patterns
+- [ ] Set up alerts for failed login attempts (>5 in 10 min)
+- [ ] Monitor for credential stuffing attacks
+- [ ] Review logs regularly (weekly minimum)
+- [ ] Implement automated anomaly detection
+
 ---
 
 ### Quick Reference: All Variables by Service
