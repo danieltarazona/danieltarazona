@@ -378,4 +378,264 @@ deno --version
 
 ---
 
+## Phase 1: Infrastructure & DNS Setup
+
+This phase covers selecting and provisioning the VPS hosting, configuring DNS, and setting up secure tunnels for self-hosted services.
+
+### VPS Hosting Options
+
+Running Coolify + Medusa 2.0 requires a VPS with adequate resources. Below is a comparison of paid (Hetzner Cloud) and free alternatives.
+
+#### Minimum Requirements for Coolify + Medusa
+
+| Resource | Minimum | Recommended | Notes |
+|----------|---------|-------------|-------|
+| **RAM** | 2 GB | 4 GB | Coolify uses ~1GB, Medusa + PostgreSQL need ~1GB+ |
+| **CPU** | 2 vCPU | 4 vCPU | Build processes are CPU-intensive |
+| **Storage** | 40 GB SSD | 80 GB SSD | Docker images, database, logs grow over time |
+| **Bandwidth** | 1 TB/month | 5 TB/month | Product images and API traffic |
+| **OS** | Ubuntu 22.04+ | Ubuntu 24.04 LTS | Debian-based preferred for Docker |
+
+#### Hetzner Cloud (Recommended Paid Option)
+
+Hetzner offers excellent price-to-performance ratio with European and US datacenters.
+
+| Plan | vCPU | RAM | Storage | Bandwidth | Monthly Cost | Best For |
+|------|------|-----|---------|-----------|--------------|----------|
+| **CX22** | 2 | 4 GB | 40 GB | 20 TB | **€4.35** (~$4.75) | Minimum viable setup |
+| **CX32** | 4 | 8 GB | 80 GB | 20 TB | **€8.25** (~$9.00) | Production recommended |
+| **CX42** | 8 | 16 GB | 160 GB | 20 TB | **€15.55** (~$17.00) | Multi-site hosting |
+
+**Hetzner Advantages:**
+- ✅ Excellent price-to-performance (best value in market)
+- ✅ 20 TB bandwidth included (more than enough)
+- ✅ ISO 27001 certified datacenters
+- ✅ Hourly billing (pay only for what you use)
+- ✅ Native IPv6 support
+- ✅ Snapshots and backups available
+
+**Setup Commands:**
+```bash
+# Install Hetzner CLI (hcloud)
+brew install hcloud  # macOS
+# Or download from https://github.com/hetznercloud/cli
+
+# Create SSH key
+hcloud ssh-key create --name my-key --public-key-from-file ~/.ssh/id_rsa.pub
+
+# Create server
+hcloud server create \
+  --name medusa-server \
+  --type cx32 \
+  --image ubuntu-24.04 \
+  --ssh-key my-key \
+  --location nbg1  # Nuremberg datacenter
+
+# List available locations
+hcloud location list
+# nbg1 (Nuremberg), fsn1 (Falkenstein), hel1 (Helsinki), ash (Ashburn, VA)
+```
+
+#### Free VPS Alternatives
+
+For development/testing or budget-constrained production, these free tier options can work:
+
+##### Oracle Cloud Free Tier (Best Free Option)
+
+Oracle Cloud offers the most generous always-free tier for VPS hosting.
+
+| Resource | Free Allocation | Notes |
+|----------|-----------------|-------|
+| **ARM VM** | 4 OCPU, 24 GB RAM | Ampere A1 (up to 4 instances sharing resources) |
+| **AMD VM** | 1/8 OCPU, 1 GB RAM | 2 instances (too small for Coolify) |
+| **Storage** | 200 GB block storage | Combined across instances |
+| **Bandwidth** | 10 TB/month | Outbound data transfer |
+
+**Recommended Setup:**
+```
+┌─────────────────────────────────────┐
+│      Oracle ARM Instance            │
+│  2 OCPU / 12 GB RAM / 100 GB        │
+│  ┌─────────────────────────────────┐│
+│  │ Coolify + Medusa + PostgreSQL  ││
+│  └─────────────────────────────────┘│
+└─────────────────────────────────────┘
+```
+
+**Pros:**
+- ✅ Generous ARM instances (24 GB RAM total!)
+- ✅ Always free (no credit card charge after trial)
+- ✅ 200 GB free block storage
+- ✅ Good network performance
+
+**Cons:**
+- ⚠️ ARM architecture requires compatible Docker images
+- ⚠️ Instance creation can be difficult (capacity issues)
+- ⚠️ Limited datacenter availability
+- ⚠️ Account may be terminated for inactivity
+
+**Setup Commands:**
+```bash
+# Install OCI CLI
+brew install oci-cli  # macOS
+# Or: pip install oci-cli
+
+# Configure OCI CLI
+oci setup config
+
+# Create ARM instance (requires tenancy, compartment, subnet IDs)
+oci compute instance launch \
+  --availability-domain "AD-1" \
+  --compartment-id $COMPARTMENT_ID \
+  --shape "VM.Standard.A1.Flex" \
+  --shape-config '{"ocpus": 2, "memoryInGBs": 12}' \
+  --image-id $UBUNTU_ARM_IMAGE_ID \
+  --subnet-id $SUBNET_ID \
+  --ssh-authorized-keys-file ~/.ssh/id_rsa.pub
+```
+
+##### Google Cloud Free Tier
+
+Google Cloud offers a limited but reliable free tier for e2-micro instances.
+
+| Resource | Free Allocation | Notes |
+|----------|-----------------|-------|
+| **VM** | e2-micro (0.25 vCPU, 1 GB RAM) | 1 instance in us-west1, us-central1, or us-east1 |
+| **Storage** | 30 GB HDD | Standard persistent disk |
+| **Bandwidth** | 1 GB/month to most regions | Network egress |
+
+**Verdict:** ❌ **Not recommended** - e2-micro is too small for Coolify + Medusa
+
+**Potential Use:** Could host only a lightweight PostgreSQL database while Medusa runs elsewhere.
+
+```bash
+# Create free tier instance (reference only - too small for this project)
+gcloud compute instances create medusa-db \
+  --machine-type=e2-micro \
+  --zone=us-central1-a \
+  --image-project=ubuntu-os-cloud \
+  --image-family=ubuntu-2404-lts-amd64 \
+  --boot-disk-size=30GB
+```
+
+##### Azure Free Tier
+
+Azure offers limited free compute for 12 months, then pay-as-you-go.
+
+| Resource | Free Allocation | Duration |
+|----------|-----------------|----------|
+| **VM** | B1s (1 vCPU, 1 GB RAM) | 750 hours/month for 12 months |
+| **Storage** | 64 GB x 2 managed disks | 12 months |
+| **Bandwidth** | 15 GB outbound | Monthly |
+
+**Verdict:** ⚠️ **Temporary only** - B1s is marginal for Coolify, and free tier expires after 12 months
+
+```bash
+# Install Azure CLI
+brew install azure-cli
+
+# Login
+az login
+
+# Create resource group
+az group create --name medusa-rg --location eastus
+
+# Create VM (free tier B1s)
+az vm create \
+  --resource-group medusa-rg \
+  --name medusa-vm \
+  --image Ubuntu2404 \
+  --size Standard_B1s \
+  --admin-username azureuser \
+  --generate-ssh-keys
+```
+
+##### AWS Free Tier
+
+AWS offers t2.micro/t3.micro for 12 months.
+
+| Resource | Free Allocation | Duration |
+|----------|-----------------|----------|
+| **EC2** | t2.micro (1 vCPU, 1 GB RAM) | 750 hours/month for 12 months |
+| **EBS** | 30 GB SSD | 12 months |
+| **Bandwidth** | 100 GB outbound | Monthly |
+
+**Verdict:** ❌ **Not recommended** - t2.micro is too small, and free tier expires
+
+#### Hosting Comparison Summary
+
+| Provider | Plan | vCPU | RAM | Storage | Monthly Cost | Coolify + Medusa? |
+|----------|------|------|-----|---------|--------------|-------------------|
+| **Hetzner** | CX22 | 2 | 4 GB | 40 GB | **€4.35** | ✅ Yes (minimum) |
+| **Hetzner** | CX32 | 4 | 8 GB | 80 GB | **€8.25** | ✅ Yes (recommended) |
+| **Oracle** | ARM A1.Flex | 2+ | 12+ GB | 100 GB | **Free** | ✅ Yes (ARM images) |
+| **Google** | e2-micro | 0.25 | 1 GB | 30 GB | Free | ❌ Too small |
+| **Azure** | B1s | 1 | 1 GB | 64 GB | Free (12mo) | ⚠️ Marginal |
+| **AWS** | t2.micro | 1 | 1 GB | 30 GB | Free (12mo) | ❌ Too small |
+
+#### Recommended Approach
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    RECOMMENDED VPS STRATEGY                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  DEVELOPMENT / TESTING:                                             │
+│  └─ Oracle Cloud ARM Free Tier                                      │
+│     • 2 OCPU / 12 GB RAM instance                                   │
+│     • Use ARM-compatible Docker images                              │
+│     • Total cost: $0/month                                          │
+│                                                                     │
+│  PRODUCTION (Budget):                                               │
+│  └─ Hetzner CX22 (€4.35/month)                                     │
+│     • 2 vCPU / 4 GB RAM / 40 GB SSD                                │
+│     • Reliable x86 architecture                                     │
+│     • 20 TB bandwidth included                                      │
+│                                                                     │
+│  PRODUCTION (Recommended):                                          │
+│  └─ Hetzner CX32 (€8.25/month)                                     │
+│     • 4 vCPU / 8 GB RAM / 80 GB SSD                                │
+│     • Room for growth and multiple services                         │
+│     • Comfortable headroom for builds                               │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### VPS Setup Tasks
+
+- [ ] **Task 2.1**: Select VPS provider based on budget and requirements
+  - [ ] For free: Create Oracle Cloud account and provision ARM instance
+  - [ ] For paid: Create Hetzner account and provision CX22 or CX32 server
+- [ ] **Task 2.2**: Configure SSH access and security
+  - [ ] Add SSH key to server
+  - [ ] Disable password authentication
+  - [ ] Configure firewall (ufw or iptables)
+- [ ] **Task 2.3**: Update system and install Docker
+  ```bash
+  # Update system
+  sudo apt update && sudo apt upgrade -y
+
+  # Install Docker
+  curl -fsSL https://get.docker.com | sh
+
+  # Add user to docker group
+  sudo usermod -aG docker $USER
+
+  # Install Docker Compose
+  sudo apt install docker-compose-plugin -y
+
+  # Verify installation
+  docker --version
+  docker compose version
+  ```
+- [ ] **Task 2.4**: Install Coolify
+  ```bash
+  # One-line Coolify installation
+  curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+
+  # Access Coolify dashboard at http://your-server-ip:8000
+  ```
+
+---
+
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*
