@@ -3721,4 +3721,688 @@ Phase 2 (If needed):  Adam brands → Evaluate Vendure migration
 
 ---
 
+## Phase 3: Frontend Development
+
+This phase covers the setup and configuration of Astro as the static site generator for both the main portfolio site (`danieltarazona.com`) and the e-commerce storefront (`store.danieltarazona.com`). Astro provides an excellent foundation for building fast, content-focused websites with optional interactivity.
+
+### Why Astro for This Project
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        ASTRO FRONTEND ARCHITECTURE                               │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌───────────────────────────────────────────────────────────────────────────┐  │
+│  │                         ASTRO BUILD SYSTEM                                 │  │
+│  │                                                                            │  │
+│  │   ┌─────────────────────┐              ┌─────────────────────────────┐    │  │
+│  │   │    .astro files     │              │     TypeScript/TSX          │    │  │
+│  │   │   (Astro Components)│              │    (React/Vue/Svelte)       │    │  │
+│  │   └──────────┬──────────┘              └──────────────┬──────────────┘    │  │
+│  │              │                                        │                    │  │
+│  │              └───────────────────┬────────────────────┘                    │  │
+│  │                                  │                                         │  │
+│  │                                  ▼                                         │  │
+│  │   ┌───────────────────────────────────────────────────────────────────┐   │  │
+│  │   │                      Vite Build Pipeline                          │   │  │
+│  │   │  • Static HTML generation (SSG)                                   │   │  │
+│  │   │  • Optional Server-Side Rendering (SSR)                           │   │  │
+│  │   │  • Partial Hydration (Islands Architecture)                       │   │  │
+│  │   │  • Asset optimization (images, CSS, JS)                           │   │  │
+│  │   └──────────────────────────────┬────────────────────────────────────┘   │  │
+│  │                                  │                                         │  │
+│  │                                  ▼                                         │  │
+│  │   ┌───────────────────────────────────────────────────────────────────┐   │  │
+│  │   │                       dist/ (Output)                               │   │  │
+│  │   │  ├── index.html                                                   │   │  │
+│  │   │  ├── about/index.html                                             │   │  │
+│  │   │  ├── gallery/index.html                                           │   │  │
+│  │   │  ├── contact/index.html                                           │   │  │
+│  │   │  ├── _astro/                                                      │   │  │
+│  │   │  │   ├── client.abc123.js                                         │   │  │
+│  │   │  │   └── styles.def456.css                                        │   │  │
+│  │   │  └── assets/                                                      │   │  │
+│  │   │      └── images/ (optimized)                                      │   │  │
+│  │   └───────────────────────────────────────────────────────────────────┘   │  │
+│  │                                                                            │  │
+│  └───────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                  │
+│  OUTPUT DESTINATIONS:                                                            │
+│  ┌─────────────────────────────┐  ┌─────────────────────────────────────────┐   │
+│  │   danieltarazona.com        │  │   store.danieltarazona.com              │   │
+│  │   → Cloudflare Pages        │  │   → Cloudflare Pages + Medusa API       │   │
+│  │   (Pure Static)             │  │   (Static + Client-side API calls)      │   │
+│  └─────────────────────────────┘  └─────────────────────────────────────────┘   │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Why Astro is Perfect for This Project
+
+| Feature | Benefit | For This Project |
+|---------|---------|------------------|
+| **Zero JS by default** | Fastest possible page loads | Excellent for photo gallery performance |
+| **Island Architecture** | Add interactivity only where needed | Cart, forms interactive; gallery static |
+| **Content Collections** | Type-safe content management | Photo metadata, blog posts, projects |
+| **Image Optimization** | Built-in image processing | Critical for photography portfolio |
+| **TypeScript Native** | Full type safety | Consistent with Medusa backend |
+| **Framework Agnostic** | Use React/Vue/Svelte/Solid | Flexibility for interactive components |
+| **SSG + SSR** | Static + dynamic options | Static portfolio, dynamic cart |
+| **Cloudflare Integration** | First-class adapter | Easy deployment to CF Pages |
+
+### Astro CLI Installation & Project Setup
+
+#### Prerequisites
+
+Before setting up Astro, ensure you have the required tools installed:
+
+```bash
+# Check Node.js version (v18+ required)
+node --version
+# Should be v18.14.1 or higher
+
+# Check npm version
+npm --version
+# Should be v6.14.0 or higher
+
+# Optional: Install pnpm for faster installs
+npm install -g pnpm
+
+# Optional: Install bun for even faster development
+# curl -fsSL https://bun.sh/install | bash
+```
+
+#### Task 4.1: Install Astro CLI
+
+- [ ] **Task 4.1.1**: Create new Astro project for portfolio site
+  ```bash
+  # Create project with npm
+  npm create astro@latest danieltarazona-portfolio
+
+  # Interactive prompts:
+  # ┌  Welcome to Astro!
+  # │
+  # ◆  How would you like to start your new project?
+  # │  ○ Include sample files (recommended)
+  # │  ○ Use blog template
+  # │  ● Empty                              ← Select this for clean start
+  # │
+  # ◆  Do you plan to write TypeScript?
+  # │  ● Yes                                ← Select this
+  # │  ○ No
+  # │
+  # ◆  How strict should TypeScript be?
+  # │  ○ Relaxed
+  # │  ● Strict                             ← Select this
+  # │  ○ Strictest
+  # │
+  # ◆  Install dependencies?
+  # │  ● Yes
+  # │  ○ No
+  # │
+  # ◆  Initialize a new git repository?
+  # │  ● Yes
+  # │  ○ No
+
+  # Alternative: Non-interactive creation
+  npm create astro@latest danieltarazona-portfolio -- \
+    --template minimal \
+    --typescript strict \
+    --install \
+    --git
+
+  # Using pnpm (faster)
+  pnpm create astro@latest danieltarazona-portfolio -- \
+    --template minimal \
+    --typescript strict
+  ```
+
+- [ ] **Task 4.1.2**: Verify Astro installation
+  ```bash
+  # Navigate to project
+  cd danieltarazona-portfolio
+
+  # Check Astro version
+  npx astro --version
+  # astro/4.x.x
+
+  # Start development server
+  npm run dev
+  # Local: http://localhost:4321/
+
+  # Build for production
+  npm run build
+
+  # Preview production build
+  npm run preview
+  ```
+
+### Project Structure for Portfolio/Photo Gallery
+
+The portfolio site follows Astro's recommended structure with additions for photo gallery functionality:
+
+```
+danieltarazona-portfolio/
+├── astro.config.mjs           # Astro configuration
+├── tsconfig.json              # TypeScript configuration
+├── package.json               # Dependencies and scripts
+├── .env                       # Environment variables (git-ignored)
+├── .env.example               # Environment template
+│
+├── public/                    # Static assets (copied as-is)
+│   ├── favicon.svg
+│   ├── robots.txt
+│   └── og-image.png          # Social sharing image
+│
+├── src/
+│   ├── components/           # Reusable UI components
+│   │   ├── Header.astro
+│   │   ├── Footer.astro
+│   │   ├── Navigation.astro
+│   │   ├── PhotoCard.astro
+│   │   ├── GalleryGrid.astro
+│   │   ├── ContactForm.tsx   # Interactive (React/Preact)
+│   │   ├── LightboxModal.tsx # Interactive (React/Preact)
+│   │   └── SocialLinks.astro
+│   │
+│   ├── layouts/              # Page layouts
+│   │   ├── BaseLayout.astro  # HTML head, body wrapper
+│   │   ├── PageLayout.astro  # Standard page with header/footer
+│   │   └── GalleryLayout.astro # Photo gallery specific
+│   │
+│   ├── pages/                # File-based routing
+│   │   ├── index.astro       # Homepage
+│   │   ├── about.astro       # About/Bio page
+│   │   ├── contact.astro     # Contact form page
+│   │   ├── gallery/
+│   │   │   ├── index.astro   # Gallery overview
+│   │   │   └── [slug].astro  # Dynamic photo album pages
+│   │   └── 404.astro         # Custom 404 page
+│   │
+│   ├── content/              # Content collections (type-safe)
+│   │   ├── config.ts         # Collection schemas
+│   │   ├── photos/           # Photo collection
+│   │   │   ├── album-1/
+│   │   │   │   ├── index.md  # Album metadata
+│   │   │   │   └── photos.json
+│   │   │   └── album-2/
+│   │   │       └── ...
+│   │   └── blog/             # Blog posts (optional)
+│   │       ├── post-1.md
+│   │       └── post-2.md
+│   │
+│   ├── styles/               # Global styles
+│   │   ├── global.css        # CSS custom properties, resets
+│   │   └── components.css    # Component-specific styles
+│   │
+│   ├── lib/                  # Utilities and helpers
+│   │   ├── supabase.ts       # Supabase client
+│   │   ├── image-utils.ts    # Image optimization helpers
+│   │   └── seo.ts            # SEO utilities
+│   │
+│   ├── types/                # TypeScript types
+│   │   ├── photo.ts
+│   │   └── content.ts
+│   │
+│   └── env.d.ts              # Environment type declarations
+│
+└── integrations/             # Custom Astro integrations (optional)
+    └── photo-processor/
+```
+
+- [ ] **Task 4.1.3**: Create project structure directories
+  ```bash
+  cd danieltarazona-portfolio
+
+  # Create all directories
+  mkdir -p src/{components,layouts,pages/gallery,content/{photos,blog},styles,lib,types}
+  mkdir -p public
+  mkdir -p integrations
+
+  # Create placeholder files
+  touch src/env.d.ts
+  touch src/content/config.ts
+  touch src/styles/global.css
+  touch .env.example
+  ```
+
+### TypeScript Configuration
+
+- [ ] **Task 4.1.4**: Configure TypeScript for Astro
+  ```bash
+  # tsconfig.json is auto-generated, but we'll customize it
+  ```
+
+  **tsconfig.json:**
+  ```json
+  {
+    "extends": "astro/tsconfigs/strict",
+    "compilerOptions": {
+      "baseUrl": ".",
+      "paths": {
+        "@/*": ["src/*"],
+        "@components/*": ["src/components/*"],
+        "@layouts/*": ["src/layouts/*"],
+        "@lib/*": ["src/lib/*"],
+        "@content/*": ["src/content/*"],
+        "@types/*": ["src/types/*"]
+      },
+      "types": ["astro/client"],
+      "strictNullChecks": true,
+      "noUncheckedIndexedAccess": true
+    },
+    "include": ["src"],
+    "exclude": ["node_modules", "dist"]
+  }
+  ```
+
+  **src/env.d.ts:**
+  ```typescript
+  /// <reference types="astro/client" />
+
+  interface ImportMetaEnv {
+    readonly SUPABASE_URL: string;
+    readonly SUPABASE_ANON_KEY: string;
+    readonly PUBLIC_SITE_URL: string;
+    readonly PUBLIC_CONTACT_EMAIL: string;
+  }
+
+  interface ImportMeta {
+    readonly env: ImportMetaEnv;
+  }
+  ```
+
+### Astro Configuration
+
+- [ ] **Task 4.1.5**: Configure Astro for portfolio site
+  ```bash
+  # astro.config.mjs
+  ```
+
+  **astro.config.mjs:**
+  ```javascript
+  import { defineConfig } from 'astro/config';
+
+  // Integrations (install as needed)
+  // import react from '@astrojs/react';
+  // import tailwind from '@astrojs/tailwind';
+  // import sitemap from '@astrojs/sitemap';
+  // import cloudflare from '@astrojs/cloudflare';
+
+  export default defineConfig({
+    // Site URL for canonical URLs and sitemap
+    site: 'https://danieltarazona.com',
+
+    // Output mode: 'static' (default) or 'server' for SSR
+    output: 'static',
+
+    // Build configuration
+    build: {
+      // Inline stylesheets smaller than this limit
+      inlineStylesheets: 'auto',
+      // Split CSS by page for better caching
+      // assets: '_astro'
+    },
+
+    // Development server
+    server: {
+      port: 4321,
+      host: true, // Expose to network
+    },
+
+    // Vite configuration
+    vite: {
+      build: {
+        // Generate source maps for debugging
+        sourcemap: true,
+      },
+      css: {
+        devSourcemap: true,
+      },
+    },
+
+    // Image optimization
+    image: {
+      // Sharp service for image processing
+      service: {
+        entrypoint: 'astro/assets/services/sharp',
+      },
+      // Remote image domains allowed
+      domains: ['images.unsplash.com'],
+      // Lazy load images by default
+      // experimentalLayout: 'responsive',
+    },
+
+    // Prefetch configuration
+    prefetch: {
+      prefetchAll: false,
+      defaultStrategy: 'hover',
+    },
+
+    // Markdown configuration
+    markdown: {
+      shikiConfig: {
+        theme: 'github-dark',
+        wrap: true,
+      },
+    },
+
+    // Integrations (uncomment as needed)
+    integrations: [
+      // react(),           // For interactive components
+      // tailwind(),        // For Tailwind CSS
+      // sitemap(),         // Generate sitemap.xml
+    ],
+
+    // Adapter for deployment (uncomment for SSR)
+    // adapter: cloudflare(),
+  });
+  ```
+
+### Installing Essential Integrations
+
+- [ ] **Task 4.1.6**: Install Astro integrations
+  ```bash
+  # Image optimization (included by default in Astro 3+)
+  # No installation needed - use built-in astro:assets
+
+  # React for interactive components (contact form, lightbox)
+  npx astro add react
+  # or: npm install @astrojs/react react react-dom
+
+  # Tailwind CSS for styling (optional but recommended)
+  npx astro add tailwind
+  # or: npm install @astrojs/tailwind tailwindcss
+
+  # Sitemap generation
+  npx astro add sitemap
+  # or: npm install @astrojs/sitemap
+
+  # Cloudflare Pages adapter (for SSR, if needed)
+  npx astro add cloudflare
+  # or: npm install @astrojs/cloudflare
+
+  # MDX support for rich content (optional)
+  npx astro add mdx
+  # or: npm install @astrojs/mdx
+  ```
+
+  **Updated astro.config.mjs with integrations:**
+  ```javascript
+  import { defineConfig } from 'astro/config';
+  import react from '@astrojs/react';
+  import tailwind from '@astrojs/tailwind';
+  import sitemap from '@astrojs/sitemap';
+
+  export default defineConfig({
+    site: 'https://danieltarazona.com',
+    output: 'static',
+    integrations: [
+      react(),
+      tailwind({
+        applyBaseStyles: false, // Use custom base styles
+      }),
+      sitemap({
+        filter: (page) => !page.includes('/admin/'),
+        changefreq: 'weekly',
+        priority: 0.7,
+      }),
+    ],
+    image: {
+      service: {
+        entrypoint: 'astro/assets/services/sharp',
+      },
+    },
+  });
+  ```
+
+### Content Collections Configuration
+
+For type-safe content management, configure Astro Content Collections:
+
+- [ ] **Task 4.1.7**: Configure content collections
+  ```bash
+  # Create content configuration
+  touch src/content/config.ts
+  ```
+
+  **src/content/config.ts:**
+  ```typescript
+  import { defineCollection, z } from 'astro:content';
+
+  // Photo album collection
+  const photosCollection = defineCollection({
+    type: 'content',
+    schema: ({ image }) => z.object({
+      title: z.string(),
+      description: z.string().optional(),
+      date: z.date(),
+      coverImage: image(),
+      tags: z.array(z.string()).default([]),
+      featured: z.boolean().default(false),
+      location: z.string().optional(),
+      camera: z.string().optional(),
+      published: z.boolean().default(true),
+    }),
+  });
+
+  // Blog posts collection
+  const blogCollection = defineCollection({
+    type: 'content',
+    schema: z.object({
+      title: z.string(),
+      description: z.string(),
+      date: z.date(),
+      author: z.string().default('Daniel Tarazona'),
+      tags: z.array(z.string()).default([]),
+      draft: z.boolean().default(false),
+      image: z.string().optional(),
+    }),
+  });
+
+  // Projects collection
+  const projectsCollection = defineCollection({
+    type: 'content',
+    schema: ({ image }) => z.object({
+      title: z.string(),
+      description: z.string(),
+      technologies: z.array(z.string()),
+      image: image().optional(),
+      liveUrl: z.string().url().optional(),
+      githubUrl: z.string().url().optional(),
+      featured: z.boolean().default(false),
+      order: z.number().default(0),
+    }),
+  });
+
+  export const collections = {
+    photos: photosCollection,
+    blog: blogCollection,
+    projects: projectsCollection,
+  };
+  ```
+
+### Package.json Configuration
+
+- [ ] **Task 4.1.8**: Configure package.json scripts
+  ```json
+  {
+    "name": "danieltarazona-portfolio",
+    "type": "module",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+      "dev": "astro dev",
+      "start": "astro dev",
+      "build": "astro check && astro build",
+      "preview": "astro preview",
+      "check": "astro check",
+      "format": "prettier --write .",
+      "lint": "eslint src --ext .ts,.tsx,.astro",
+      "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+      "astro": "^4.16.0",
+      "@astrojs/react": "^3.6.0",
+      "@astrojs/sitemap": "^3.2.0",
+      "@astrojs/tailwind": "^5.1.0",
+      "@supabase/supabase-js": "^2.45.0",
+      "react": "^18.3.0",
+      "react-dom": "^18.3.0",
+      "tailwindcss": "^3.4.0"
+    },
+    "devDependencies": {
+      "@types/react": "^18.3.0",
+      "@types/react-dom": "^18.3.0",
+      "typescript": "^5.6.0",
+      "prettier": "^3.3.0",
+      "prettier-plugin-astro": "^0.14.0",
+      "eslint": "^9.0.0",
+      "eslint-plugin-astro": "^1.2.0",
+      "@typescript-eslint/parser": "^8.0.0"
+    },
+    "engines": {
+      "node": ">=18.14.1"
+    }
+  }
+  ```
+
+### Base Layout Template
+
+- [ ] **Task 4.1.9**: Create base layout for all pages
+  ```astro
+  ---
+  // src/layouts/BaseLayout.astro
+  interface Props {
+    title: string;
+    description?: string;
+    image?: string;
+    canonicalUrl?: string;
+  }
+
+  const {
+    title,
+    description = 'Photography portfolio and personal website of Daniel Tarazona',
+    image = '/og-image.png',
+    canonicalUrl = Astro.url.href,
+  } = Astro.props;
+
+  const siteTitle = 'Daniel Tarazona';
+  const fullTitle = title === siteTitle ? title : `${title} | ${siteTitle}`;
+  ---
+
+  <!doctype html>
+  <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <meta name="generator" content={Astro.generator} />
+
+      <!-- Primary Meta Tags -->
+      <title>{fullTitle}</title>
+      <meta name="title" content={fullTitle} />
+      <meta name="description" content={description} />
+
+      <!-- Canonical URL -->
+      <link rel="canonical" href={canonicalUrl} />
+
+      <!-- Open Graph / Facebook -->
+      <meta property="og:type" content="website" />
+      <meta property="og:url" content={canonicalUrl} />
+      <meta property="og:title" content={fullTitle} />
+      <meta property="og:description" content={description} />
+      <meta property="og:image" content={new URL(image, Astro.site)} />
+
+      <!-- Twitter -->
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:url" content={canonicalUrl} />
+      <meta name="twitter:title" content={fullTitle} />
+      <meta name="twitter:description" content={description} />
+      <meta name="twitter:image" content={new URL(image, Astro.site)} />
+
+      <!-- Favicon -->
+      <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+      <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+      <!-- Fonts (preconnect for performance) -->
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+      <!-- Global Styles -->
+      <style is:global>
+        @import '../styles/global.css';
+      </style>
+    </head>
+    <body>
+      <slot />
+    </body>
+  </html>
+  ```
+
+### Environment Variables Template
+
+- [ ] **Task 4.1.10**: Create environment variables template
+  ```bash
+  # .env.example
+
+  # Site Configuration
+  PUBLIC_SITE_URL=https://danieltarazona.com
+  PUBLIC_CONTACT_EMAIL=contact@danieltarazona.com
+
+  # Supabase (for contact form)
+  SUPABASE_URL=https://your-project.supabase.co
+  SUPABASE_ANON_KEY=your-anon-key
+
+  # Analytics (optional)
+  PUBLIC_ANALYTICS_ID=
+
+  # Social Links
+  PUBLIC_TWITTER_HANDLE=@danieltarazona
+  PUBLIC_GITHUB_URL=https://github.com/danieltarazona
+  PUBLIC_LINKEDIN_URL=https://linkedin.com/in/danieltarazona
+  ```
+
+### Development Workflow Commands
+
+```bash
+# Daily development workflow
+cd danieltarazona-portfolio
+
+# Start development server with hot reload
+npm run dev
+# → Local: http://localhost:4321/
+
+# Type checking
+npm run check
+
+# Build for production
+npm run build
+
+# Preview production build locally
+npm run preview
+
+# Format code with Prettier
+npm run format
+
+# Run linting
+npm run lint
+```
+
+### Phase 3 Task Summary: Portfolio Site Setup
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| 4.1.1 | Create new Astro project for portfolio site | [ ] |
+| 4.1.2 | Verify Astro installation and scripts | [ ] |
+| 4.1.3 | Create project structure directories | [ ] |
+| 4.1.4 | Configure TypeScript for Astro | [ ] |
+| 4.1.5 | Configure Astro for portfolio site | [ ] |
+| 4.1.6 | Install Astro integrations (React, Tailwind, Sitemap) | [ ] |
+| 4.1.7 | Configure content collections | [ ] |
+| 4.1.8 | Configure package.json scripts | [ ] |
+| 4.1.9 | Create base layout for all pages | [ ] |
+| 4.1.10 | Create environment variables template | [ ] |
+
+---
+
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*
