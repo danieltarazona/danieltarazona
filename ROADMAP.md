@@ -11178,6 +11178,1301 @@ This phase covers the setup and configuration of Coolify as a self-hosted deploy
   | Auto-scaling | Not built-in | Use external orchestration |
   | Zero-downtime | Enabled | Rolling updates |
 
+### Task 6.2: GitHub Actions Workflow Setup
+
+This section covers the setup and configuration of GitHub Actions for automated CI/CD pipelines, following the existing repository patterns (e.g., `snake.yml`) and integrating with Coolify and Cloudflare Pages for automated deployments.
+
+#### GitHub Actions Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                         GITHUB ACTIONS CI/CD ARCHITECTURE                                │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+                              ┌─────────────────┐
+                              │   Developer     │
+                              │   (Push/PR)     │
+                              └────────┬────────┘
+                                       │ git push / Pull Request
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              GITHUB REPOSITORY                                           │
+│  ┌───────────────────────────────────────────────────────────────────────────────────┐  │
+│  │  .github/workflows/                                                                │  │
+│  │  ├── portfolio-deploy.yml    (Portfolio site → Cloudflare Pages)                  │  │
+│  │  ├── store-deploy.yml        (Store frontend → Cloudflare Pages)                  │  │
+│  │  ├── medusa-deploy.yml       (Medusa backend → Coolify webhook)                   │  │
+│  │  ├── lint-test.yml           (Code quality checks)                                │  │
+│  │  └── snake.yml               (Existing: GitHub contribution animation)            │  │
+│  └───────────────────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+                                       │
+                    ┌──────────────────┼──────────────────┐
+                    │                  │                  │
+                    ▼                  ▼                  ▼
+         ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+         │  Lint & Test    │ │ Build Static    │ │  Webhook        │
+         │  (Quality Gate) │ │ (Astro Build)   │ │  (Coolify)      │
+         └────────┬────────┘ └────────┬────────┘ └────────┬────────┘
+                  │                   │                   │
+                  ▼                   ▼                   ▼
+         ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+         │   Pass/Fail     │ │ Cloudflare      │ │  Coolify        │
+         │   Status        │ │ Pages Deploy    │ │  Auto-Deploy    │
+         └─────────────────┘ └─────────────────┘ └─────────────────┘
+                                     │                   │
+                                     ▼                   ▼
+                          ┌───────────────────────────────────────┐
+                          │         PRODUCTION ENVIRONMENT        │
+                          │  ┌─────────────┐  ┌─────────────────┐ │
+                          │  │ danieltara- │  │ store.daniel-   │ │
+                          │  │ zona.com    │  │ tarazona.com    │ │
+                          │  │ (Portfolio) │  │ (E-commerce)    │ │
+                          │  └─────────────┘  └─────────────────┘ │
+                          └───────────────────────────────────────┘
+```
+
+#### Workflow Pattern Reference
+
+The existing `snake.yml` workflow demonstrates the repository's conventions for GitHub Actions:
+
+```yaml
+# .github/workflows/snake.yml - Reference Pattern
+name: Generate Snake Animation
+
+on:
+  schedule:
+    - cron: "0 */12 * * *" # Runs every 12 hours
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  generate:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Generate Snake Game
+        uses: Platane/snk/svg-only@v3
+        with:
+          github_user_name: ${{ github.repository_owner }}
+          outputs: |
+            dist/github-contribution-grid-snake.svg
+            dist/github-contribution-grid-snake-dark.svg?palette=github-dark
+
+      - name: Push Snake to Output Branch
+        uses: crazy-max/ghaction-github-pages@v4
+        with:
+          target_branch: output
+          build_dir: dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+**Key Patterns to Follow:**
+- Use semantic workflow names
+- Define appropriate triggers (`push`, `schedule`, `workflow_dispatch`)
+- Set explicit permissions for security
+- Use `ubuntu-latest` as the runner
+- Set reasonable timeouts
+- Leverage existing GitHub Actions from marketplace
+- Use environment variables and secrets properly
+
+#### Task 6.2.1: Repository Secrets Configuration
+
+- [ ] **Task 6.2.1**: Configure GitHub repository secrets for deployments
+
+  **Required Secrets:**
+
+  | Secret Name | Purpose | Where to Get |
+  |-------------|---------|--------------|
+  | `CLOUDFLARE_API_TOKEN` | Cloudflare Pages deployment | Cloudflare Dashboard → API Tokens |
+  | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account identifier | Cloudflare Dashboard → Overview |
+  | `COOLIFY_WEBHOOK_URL` | Trigger Coolify deployments | Coolify → Application → Webhooks |
+  | `COOLIFY_WEBHOOK_SECRET` | Authenticate webhook requests | Coolify → Application → Webhooks |
+  | `SUPABASE_URL` | Supabase project URL | Supabase Dashboard → Settings → API |
+  | `SUPABASE_ANON_KEY` | Supabase anonymous key | Supabase Dashboard → Settings → API |
+
+  **Adding Secrets via GitHub CLI:**
+
+  ```bash
+  # Install GitHub CLI if not present
+  brew install gh  # macOS
+  # or
+  sudo apt install gh  # Ubuntu
+
+  # Authenticate with GitHub
+  gh auth login
+
+  # Add secrets to repository
+  gh secret set CLOUDFLARE_API_TOKEN --body "your-cloudflare-api-token"
+  gh secret set CLOUDFLARE_ACCOUNT_ID --body "your-cloudflare-account-id"
+  gh secret set COOLIFY_WEBHOOK_URL --body "https://coolify.yourdomain.com/webhook/abc123"
+  gh secret set COOLIFY_WEBHOOK_SECRET --body "your-webhook-secret"
+  gh secret set SUPABASE_URL --body "https://your-project.supabase.co"
+  gh secret set SUPABASE_ANON_KEY --body "your-anon-key"
+
+  # Verify secrets are set
+  gh secret list
+  ```
+
+  **Adding Secrets via GitHub Web UI:**
+
+  1. Navigate to repository → Settings → Secrets and variables → Actions
+  2. Click "New repository secret"
+  3. Add each secret with its name and value
+  4. Repeat for all required secrets
+
+  **Creating Cloudflare API Token:**
+
+  ```bash
+  # Required permissions for Cloudflare Pages deployment
+  # Account: Cloudflare Pages - Edit
+  # Zone: DNS - Edit (if managing DNS)
+  # Zone: Zone - Read
+
+  # Via Cloudflare Dashboard:
+  # 1. Go to My Profile → API Tokens
+  # 2. Create Token → Custom Token
+  # 3. Add permissions:
+  #    - Account: Cloudflare Pages - Edit
+  #    - Account: Account Settings - Read
+  #    - Zone: Zone - Read (for your domain)
+  # 4. Continue to summary → Create Token
+  # 5. Copy and save the token immediately
+  ```
+
+#### Task 6.2.2: Portfolio Site Deployment Workflow
+
+- [ ] **Task 6.2.2**: Create GitHub Actions workflow for portfolio site deployment to Cloudflare Pages
+
+  **Create `.github/workflows/portfolio-deploy.yml`:**
+
+  ```yaml
+  name: Deploy Portfolio Site
+
+  on:
+    push:
+      branches:
+        - main
+      paths:
+        - 'portfolio/**'
+        - '.github/workflows/portfolio-deploy.yml'
+    pull_request:
+      branches:
+        - main
+      paths:
+        - 'portfolio/**'
+    workflow_dispatch:
+      inputs:
+        environment:
+          description: 'Deployment environment'
+          required: true
+          default: 'production'
+          type: choice
+          options:
+            - production
+            - preview
+
+  env:
+    NODE_VERSION: '20'
+    PNPM_VERSION: '8'
+
+  jobs:
+    lint-and-test:
+      name: Lint & Test
+      runs-on: ubuntu-latest
+      timeout-minutes: 10
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@v2
+          with:
+            version: ${{ env.PNPM_VERSION }}
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: ${{ env.NODE_VERSION }}
+            cache: 'pnpm'
+            cache-dependency-path: 'portfolio/pnpm-lock.yaml'
+
+        - name: Install dependencies
+          working-directory: portfolio
+          run: pnpm install --frozen-lockfile
+
+        - name: Run linter
+          working-directory: portfolio
+          run: pnpm lint
+
+        - name: Run type check
+          working-directory: portfolio
+          run: pnpm typecheck
+
+        - name: Run tests
+          working-directory: portfolio
+          run: pnpm test --passWithNoTests
+
+    build:
+      name: Build Portfolio
+      needs: lint-and-test
+      runs-on: ubuntu-latest
+      timeout-minutes: 15
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@v2
+          with:
+            version: ${{ env.PNPM_VERSION }}
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: ${{ env.NODE_VERSION }}
+            cache: 'pnpm'
+            cache-dependency-path: 'portfolio/pnpm-lock.yaml'
+
+        - name: Install dependencies
+          working-directory: portfolio
+          run: pnpm install --frozen-lockfile
+
+        - name: Build Astro site
+          working-directory: portfolio
+          run: pnpm build
+          env:
+            SITE_URL: https://danieltarazona.com
+            PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+            PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+        - name: Upload build artifacts
+          uses: actions/upload-artifact@v4
+          with:
+            name: portfolio-dist
+            path: portfolio/dist
+            retention-days: 1
+
+    deploy-preview:
+      name: Deploy Preview
+      needs: build
+      runs-on: ubuntu-latest
+      timeout-minutes: 10
+      if: github.event_name == 'pull_request'
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Download build artifacts
+          uses: actions/download-artifact@v4
+          with:
+            name: portfolio-dist
+            path: portfolio/dist
+
+        - name: Deploy to Cloudflare Pages (Preview)
+          uses: cloudflare/pages-action@v1
+          with:
+            apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+            accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+            projectName: danieltarazona-portfolio
+            directory: portfolio/dist
+            gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+    deploy-production:
+      name: Deploy Production
+      needs: build
+      runs-on: ubuntu-latest
+      timeout-minutes: 10
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      environment:
+        name: production
+        url: https://danieltarazona.com
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Download build artifacts
+          uses: actions/download-artifact@v4
+          with:
+            name: portfolio-dist
+            path: portfolio/dist
+
+        - name: Deploy to Cloudflare Pages (Production)
+          uses: cloudflare/pages-action@v1
+          with:
+            apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+            accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+            projectName: danieltarazona-portfolio
+            directory: portfolio/dist
+            branch: main
+            gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+        - name: Purge Cloudflare Cache
+          run: |
+            curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/purge_cache" \
+              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              --data '{"purge_everything":true}'
+  ```
+
+#### Task 6.2.3: Store Frontend Deployment Workflow
+
+- [ ] **Task 6.2.3**: Create GitHub Actions workflow for store frontend deployment to Cloudflare Pages
+
+  **Create `.github/workflows/store-deploy.yml`:**
+
+  ```yaml
+  name: Deploy Store Frontend
+
+  on:
+    push:
+      branches:
+        - main
+      paths:
+        - 'store/**'
+        - '.github/workflows/store-deploy.yml'
+    pull_request:
+      branches:
+        - main
+      paths:
+        - 'store/**'
+    workflow_dispatch:
+
+  env:
+    NODE_VERSION: '20'
+    PNPM_VERSION: '8'
+
+  jobs:
+    lint-and-test:
+      name: Lint & Test
+      runs-on: ubuntu-latest
+      timeout-minutes: 10
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@v2
+          with:
+            version: ${{ env.PNPM_VERSION }}
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: ${{ env.NODE_VERSION }}
+            cache: 'pnpm'
+            cache-dependency-path: 'store/pnpm-lock.yaml'
+
+        - name: Install dependencies
+          working-directory: store
+          run: pnpm install --frozen-lockfile
+
+        - name: Run linter
+          working-directory: store
+          run: pnpm lint
+
+        - name: Run type check
+          working-directory: store
+          run: pnpm typecheck
+
+    build:
+      name: Build Store
+      needs: lint-and-test
+      runs-on: ubuntu-latest
+      timeout-minutes: 15
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@v2
+          with:
+            version: ${{ env.PNPM_VERSION }}
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: ${{ env.NODE_VERSION }}
+            cache: 'pnpm'
+            cache-dependency-path: 'store/pnpm-lock.yaml'
+
+        - name: Install dependencies
+          working-directory: store
+          run: pnpm install --frozen-lockfile
+
+        - name: Build Astro Storefront
+          working-directory: store
+          run: pnpm build
+          env:
+            SITE_URL: https://store.danieltarazona.com
+            PUBLIC_MEDUSA_BACKEND_URL: https://api.danieltarazona.com
+            PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${{ secrets.MEDUSA_PUBLISHABLE_KEY }}
+
+        - name: Upload build artifacts
+          uses: actions/upload-artifact@v4
+          with:
+            name: store-dist
+            path: store/dist
+            retention-days: 1
+
+    deploy-preview:
+      name: Deploy Preview
+      needs: build
+      runs-on: ubuntu-latest
+      timeout-minutes: 10
+      if: github.event_name == 'pull_request'
+
+      steps:
+        - name: Download build artifacts
+          uses: actions/download-artifact@v4
+          with:
+            name: store-dist
+            path: store/dist
+
+        - name: Deploy to Cloudflare Pages (Preview)
+          uses: cloudflare/pages-action@v1
+          with:
+            apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+            accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+            projectName: danieltarazona-store
+            directory: store/dist
+            gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+    deploy-production:
+      name: Deploy Production
+      needs: build
+      runs-on: ubuntu-latest
+      timeout-minutes: 10
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      environment:
+        name: store-production
+        url: https://store.danieltarazona.com
+
+      steps:
+        - name: Download build artifacts
+          uses: actions/download-artifact@v4
+          with:
+            name: store-dist
+            path: store/dist
+
+        - name: Deploy to Cloudflare Pages (Production)
+          uses: cloudflare/pages-action@v1
+          with:
+            apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+            accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+            projectName: danieltarazona-store
+            directory: store/dist
+            branch: main
+            gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+  ```
+
+#### Task 6.2.4: Medusa Backend Deployment Workflow
+
+- [ ] **Task 6.2.4**: Create GitHub Actions workflow for Medusa backend deployment to Coolify
+
+  **Create `.github/workflows/medusa-deploy.yml`:**
+
+  ```yaml
+  name: Deploy Medusa Backend
+
+  on:
+    push:
+      branches:
+        - main
+      paths:
+        - 'medusa/**'
+        - '.github/workflows/medusa-deploy.yml'
+    workflow_dispatch:
+      inputs:
+        skip_tests:
+          description: 'Skip tests before deployment'
+          required: false
+          default: 'false'
+          type: boolean
+
+  env:
+    NODE_VERSION: '20'
+    PNPM_VERSION: '8'
+
+  jobs:
+    test:
+      name: Test Medusa Backend
+      runs-on: ubuntu-latest
+      timeout-minutes: 15
+      if: ${{ github.event.inputs.skip_tests != 'true' }}
+
+      services:
+        postgres:
+          image: postgres:15
+          env:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: medusa_test
+          ports:
+            - 5432:5432
+          options: >-
+            --health-cmd pg_isready
+            --health-interval 10s
+            --health-timeout 5s
+            --health-retries 5
+
+        redis:
+          image: redis:7
+          ports:
+            - 6379:6379
+          options: >-
+            --health-cmd "redis-cli ping"
+            --health-interval 10s
+            --health-timeout 5s
+            --health-retries 5
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@v2
+          with:
+            version: ${{ env.PNPM_VERSION }}
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: ${{ env.NODE_VERSION }}
+            cache: 'pnpm'
+            cache-dependency-path: 'medusa/pnpm-lock.yaml'
+
+        - name: Install dependencies
+          working-directory: medusa
+          run: pnpm install --frozen-lockfile
+
+        - name: Run database migrations
+          working-directory: medusa
+          run: pnpm medusa db:migrate
+          env:
+            DATABASE_URL: postgres://postgres:postgres@localhost:5432/medusa_test
+            REDIS_URL: redis://localhost:6379
+
+        - name: Run tests
+          working-directory: medusa
+          run: pnpm test
+          env:
+            DATABASE_URL: postgres://postgres:postgres@localhost:5432/medusa_test
+            REDIS_URL: redis://localhost:6379
+            JWT_SECRET: test-jwt-secret
+            COOKIE_SECRET: test-cookie-secret
+
+    deploy:
+      name: Trigger Coolify Deployment
+      needs: [test]
+      runs-on: ubuntu-latest
+      timeout-minutes: 5
+      if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
+      environment:
+        name: medusa-production
+        url: https://api.danieltarazona.com
+
+      steps:
+        - name: Trigger Coolify Webhook
+          run: |
+            response=$(curl -s -w "\n%{http_code}" -X POST \
+              "${{ secrets.COOLIFY_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -H "X-Webhook-Secret: ${{ secrets.COOLIFY_WEBHOOK_SECRET }}" \
+              -d '{
+                "ref": "${{ github.ref }}",
+                "sha": "${{ github.sha }}",
+                "repository": "${{ github.repository }}",
+                "pusher": "${{ github.actor }}"
+              }')
+
+            http_code=$(echo "$response" | tail -n 1)
+            body=$(echo "$response" | head -n -1)
+
+            echo "Response: $body"
+            echo "HTTP Status: $http_code"
+
+            if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+              echo "::error::Coolify webhook failed with status $http_code"
+              exit 1
+            fi
+
+        - name: Wait for Deployment
+          run: |
+            echo "Waiting for Coolify deployment to complete..."
+            sleep 30  # Give Coolify time to start the deployment
+
+        - name: Health Check
+          run: |
+            max_attempts=10
+            attempt=1
+
+            while [ $attempt -le $max_attempts ]; do
+              echo "Health check attempt $attempt of $max_attempts..."
+
+              response=$(curl -s -o /dev/null -w "%{http_code}" \
+                "https://api.danieltarazona.com/health" || echo "000")
+
+              if [ "$response" = "200" ]; then
+                echo "✅ Health check passed!"
+                exit 0
+              fi
+
+              echo "Health check returned $response, waiting..."
+              sleep 15
+              attempt=$((attempt + 1))
+            done
+
+            echo "::warning::Health check did not pass within expected time"
+            # Don't fail the job, just warn
+  ```
+
+#### Task 6.2.5: Unified CI/CD Workflow
+
+- [ ] **Task 6.2.5**: Create a unified lint and test workflow for all projects
+
+  **Create `.github/workflows/ci.yml`:**
+
+  ```yaml
+  name: CI Pipeline
+
+  on:
+    push:
+      branches:
+        - main
+        - develop
+    pull_request:
+      branches:
+        - main
+        - develop
+
+  env:
+    NODE_VERSION: '20'
+    PNPM_VERSION: '8'
+
+  jobs:
+    detect-changes:
+      name: Detect Changes
+      runs-on: ubuntu-latest
+      outputs:
+        portfolio: ${{ steps.filter.outputs.portfolio }}
+        store: ${{ steps.filter.outputs.store }}
+        medusa: ${{ steps.filter.outputs.medusa }}
+        shared: ${{ steps.filter.outputs.shared }}
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Detect file changes
+          uses: dorny/paths-filter@v2
+          id: filter
+          with:
+            filters: |
+              portfolio:
+                - 'portfolio/**'
+              store:
+                - 'store/**'
+              medusa:
+                - 'medusa/**'
+              shared:
+                - 'packages/**'
+                - 'package.json'
+                - 'pnpm-lock.yaml'
+                - 'pnpm-workspace.yaml'
+
+    lint-portfolio:
+      name: Lint Portfolio
+      needs: detect-changes
+      if: needs.detect-changes.outputs.portfolio == 'true' || needs.detect-changes.outputs.shared == 'true'
+      runs-on: ubuntu-latest
+      timeout-minutes: 10
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@v2
+          with:
+            version: ${{ env.PNPM_VERSION }}
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: ${{ env.NODE_VERSION }}
+            cache: 'pnpm'
+
+        - name: Install dependencies
+          run: pnpm install --frozen-lockfile
+
+        - name: Lint portfolio
+          working-directory: portfolio
+          run: pnpm lint
+
+        - name: Type check portfolio
+          working-directory: portfolio
+          run: pnpm typecheck
+
+    lint-store:
+      name: Lint Store
+      needs: detect-changes
+      if: needs.detect-changes.outputs.store == 'true' || needs.detect-changes.outputs.shared == 'true'
+      runs-on: ubuntu-latest
+      timeout-minutes: 10
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@v2
+          with:
+            version: ${{ env.PNPM_VERSION }}
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: ${{ env.NODE_VERSION }}
+            cache: 'pnpm'
+
+        - name: Install dependencies
+          run: pnpm install --frozen-lockfile
+
+        - name: Lint store
+          working-directory: store
+          run: pnpm lint
+
+        - name: Type check store
+          working-directory: store
+          run: pnpm typecheck
+
+    lint-medusa:
+      name: Lint Medusa
+      needs: detect-changes
+      if: needs.detect-changes.outputs.medusa == 'true' || needs.detect-changes.outputs.shared == 'true'
+      runs-on: ubuntu-latest
+      timeout-minutes: 10
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@v2
+          with:
+            version: ${{ env.PNPM_VERSION }}
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: ${{ env.NODE_VERSION }}
+            cache: 'pnpm'
+
+        - name: Install dependencies
+          run: pnpm install --frozen-lockfile
+
+        - name: Lint medusa
+          working-directory: medusa
+          run: pnpm lint
+
+        - name: Type check medusa
+          working-directory: medusa
+          run: pnpm typecheck
+
+    build-check:
+      name: Build Check
+      needs: [detect-changes, lint-portfolio, lint-store, lint-medusa]
+      if: always()
+      runs-on: ubuntu-latest
+      timeout-minutes: 20
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@v2
+          with:
+            version: ${{ env.PNPM_VERSION }}
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: ${{ env.NODE_VERSION }}
+            cache: 'pnpm'
+
+        - name: Install dependencies
+          run: pnpm install --frozen-lockfile
+
+        - name: Build portfolio
+          if: needs.detect-changes.outputs.portfolio == 'true' || needs.detect-changes.outputs.shared == 'true'
+          working-directory: portfolio
+          run: pnpm build
+
+        - name: Build store
+          if: needs.detect-changes.outputs.store == 'true' || needs.detect-changes.outputs.shared == 'true'
+          working-directory: store
+          run: pnpm build
+
+        - name: Build medusa
+          if: needs.detect-changes.outputs.medusa == 'true' || needs.detect-changes.outputs.shared == 'true'
+          working-directory: medusa
+          run: pnpm build
+  ```
+
+#### Task 6.2.6: Cloudflare Pages Project Setup
+
+- [ ] **Task 6.2.6**: Configure Cloudflare Pages projects via Wrangler CLI
+
+  **Install and Configure Wrangler:**
+
+  ```bash
+  # Install Wrangler CLI globally
+  npm install -g wrangler
+
+  # Authenticate with Cloudflare
+  wrangler login
+
+  # Verify authentication
+  wrangler whoami
+  ```
+
+  **Create Cloudflare Pages Project for Portfolio:**
+
+  ```bash
+  # Navigate to portfolio directory
+  cd portfolio
+
+  # Create Cloudflare Pages project
+  wrangler pages project create danieltarazona-portfolio \
+    --production-branch main
+
+  # Deploy manually (first time)
+  pnpm build
+  wrangler pages deploy dist --project-name danieltarazona-portfolio
+  ```
+
+  **Create Cloudflare Pages Project for Store:**
+
+  ```bash
+  # Navigate to store directory
+  cd store
+
+  # Create Cloudflare Pages project
+  wrangler pages project create danieltarazona-store \
+    --production-branch main
+
+  # Deploy manually (first time)
+  pnpm build
+  wrangler pages deploy dist --project-name danieltarazona-store
+  ```
+
+  **Configure Custom Domains:**
+
+  ```bash
+  # Add custom domain for portfolio
+  wrangler pages project add-domain danieltarazona-portfolio danieltarazona.com
+
+  # Add custom domain for store
+  wrangler pages project add-domain danieltarazona-store store.danieltarazona.com
+
+  # Verify DNS settings (Cloudflare will auto-configure if domain is on Cloudflare)
+  ```
+
+  **Environment Variables in Cloudflare Pages:**
+
+  ```bash
+  # Set production environment variables for portfolio
+  wrangler pages secret put PUBLIC_SUPABASE_URL --project-name danieltarazona-portfolio
+  wrangler pages secret put PUBLIC_SUPABASE_ANON_KEY --project-name danieltarazona-portfolio
+
+  # Set production environment variables for store
+  wrangler pages secret put PUBLIC_MEDUSA_BACKEND_URL --project-name danieltarazona-store
+  wrangler pages secret put PUBLIC_MEDUSA_PUBLISHABLE_KEY --project-name danieltarazona-store
+  ```
+
+  **Pages Configuration File (`wrangler.toml` for each project):**
+
+  ```toml
+  # portfolio/wrangler.toml
+  name = "danieltarazona-portfolio"
+  compatibility_date = "2024-01-01"
+
+  [site]
+  bucket = "./dist"
+
+  [env.production]
+  vars = { ENVIRONMENT = "production" }
+
+  [env.preview]
+  vars = { ENVIRONMENT = "preview" }
+  ```
+
+  ```toml
+  # store/wrangler.toml
+  name = "danieltarazona-store"
+  compatibility_date = "2024-01-01"
+
+  [site]
+  bucket = "./dist"
+
+  [env.production]
+  vars = { ENVIRONMENT = "production" }
+
+  [env.preview]
+  vars = { ENVIRONMENT = "preview" }
+  ```
+
+#### Task 6.2.7: Coolify Webhook Configuration
+
+- [ ] **Task 6.2.7**: Configure Coolify webhooks for automated deployments
+
+  **Enable Webhooks in Coolify:**
+
+  1. Navigate to Coolify Dashboard → Applications → Medusa
+  2. Go to "Webhooks" tab
+  3. Enable "Deploy Webhook"
+  4. Copy the webhook URL (format: `https://coolify.yourdomain.com/webhook/<uuid>`)
+  5. Generate a webhook secret for authentication
+
+  **Webhook Configuration Details:**
+
+  | Setting | Value | Notes |
+  |---------|-------|-------|
+  | Webhook URL | `https://coolify.domain.com/webhook/<uuid>` | Unique per application |
+  | Secret | Random string (32+ chars) | Store in GitHub Secrets |
+  | Trigger | On webhook call | Manual or CI/CD triggered |
+
+  **Alternative: Git-Based Deployments in Coolify:**
+
+  If you prefer Coolify to poll GitHub directly (without webhooks):
+
+  1. Coolify Dashboard → Applications → Medusa → General
+  2. Set "Git Repository" to your GitHub repo
+  3. Enable "Auto Deploy on Push"
+  4. Coolify will automatically deploy when it detects changes
+
+  **Coolify Deploy Key Setup (for Private Repos):**
+
+  ```bash
+  # Generate SSH key pair on Coolify server
+  ssh-keygen -t ed25519 -C "coolify-deploy" -f ~/.ssh/coolify_deploy -N ""
+
+  # Copy public key
+  cat ~/.ssh/coolify_deploy.pub
+
+  # Add as Deploy Key in GitHub:
+  # Repository → Settings → Deploy keys → Add deploy key
+  # Paste the public key, enable "Allow write access" if needed
+  ```
+
+#### Task 6.2.8: Deployment Notifications
+
+- [ ] **Task 6.2.8**: Configure deployment notifications (optional)
+
+  **Create `.github/workflows/notify.yml`:**
+
+  ```yaml
+  name: Deployment Notifications
+
+  on:
+    workflow_run:
+      workflows:
+        - "Deploy Portfolio Site"
+        - "Deploy Store Frontend"
+        - "Deploy Medusa Backend"
+      types:
+        - completed
+
+  jobs:
+    notify:
+      name: Send Notification
+      runs-on: ubuntu-latest
+      timeout-minutes: 5
+
+      steps:
+        - name: Determine status
+          id: status
+          run: |
+            if [ "${{ github.event.workflow_run.conclusion }}" = "success" ]; then
+              echo "emoji=✅" >> $GITHUB_OUTPUT
+              echo "status=succeeded" >> $GITHUB_OUTPUT
+            else
+              echo "emoji=❌" >> $GITHUB_OUTPUT
+              echo "status=failed" >> $GITHUB_OUTPUT
+            fi
+
+        - name: Send Discord notification
+          if: ${{ secrets.DISCORD_WEBHOOK_URL != '' }}
+          run: |
+            curl -H "Content-Type: application/json" \
+              -d '{
+                "content": null,
+                "embeds": [{
+                  "title": "${{ steps.status.outputs.emoji }} Deployment ${{ steps.status.outputs.status }}",
+                  "description": "**Workflow:** ${{ github.event.workflow_run.name }}\n**Branch:** ${{ github.event.workflow_run.head_branch }}\n**Commit:** `${{ github.event.workflow_run.head_sha }}`",
+                  "color": ${{ github.event.workflow_run.conclusion == 'success' && '3066993' || '15158332' }},
+                  "timestamp": "${{ github.event.workflow_run.updated_at }}"
+                }]
+              }' \
+              ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+        - name: Send Slack notification
+          if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+          run: |
+            curl -X POST -H "Content-Type: application/json" \
+              -d '{
+                "text": "${{ steps.status.outputs.emoji }} Deployment ${{ steps.status.outputs.status }}",
+                "blocks": [
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*${{ github.event.workflow_run.name }}* ${{ steps.status.outputs.status }}\n*Branch:* ${{ github.event.workflow_run.head_branch }}\n*Commit:* `${{ github.event.workflow_run.head_sha }}`"
+                    }
+                  }
+                ]
+              }' \
+              ${{ secrets.SLACK_WEBHOOK_URL }}
+  ```
+
+#### Task 6.2.9: Scheduled Maintenance Workflows
+
+- [ ] **Task 6.2.9**: Create scheduled maintenance workflows
+
+  **Create `.github/workflows/maintenance.yml`:**
+
+  ```yaml
+  name: Scheduled Maintenance
+
+  on:
+    schedule:
+      # Run daily at 3:00 AM UTC
+      - cron: '0 3 * * *'
+    workflow_dispatch:
+
+  jobs:
+    dependency-check:
+      name: Check Dependencies
+      runs-on: ubuntu-latest
+      timeout-minutes: 10
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@v2
+          with:
+            version: '8'
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: '20'
+            cache: 'pnpm'
+
+        - name: Install dependencies
+          run: pnpm install --frozen-lockfile
+
+        - name: Check for outdated packages
+          run: pnpm outdated || true
+
+        - name: Run security audit
+          run: pnpm audit || true
+
+    lighthouse-audit:
+      name: Lighthouse Audit
+      runs-on: ubuntu-latest
+      timeout-minutes: 15
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Run Lighthouse CI
+          uses: treosh/lighthouse-ci-action@v10
+          with:
+            urls: |
+              https://danieltarazona.com
+              https://store.danieltarazona.com
+            uploadArtifacts: true
+            temporaryPublicStorage: true
+
+        - name: Check Lighthouse scores
+          run: |
+            echo "Lighthouse audit completed. Check artifacts for detailed reports."
+
+    healthcheck:
+      name: Health Check
+      runs-on: ubuntu-latest
+      timeout-minutes: 5
+
+      steps:
+        - name: Check Portfolio Site
+          run: |
+            status=$(curl -s -o /dev/null -w "%{http_code}" https://danieltarazona.com)
+            if [ "$status" != "200" ]; then
+              echo "::error::Portfolio site returned status $status"
+              exit 1
+            fi
+            echo "✅ Portfolio site is healthy (HTTP $status)"
+
+        - name: Check Store Site
+          run: |
+            status=$(curl -s -o /dev/null -w "%{http_code}" https://store.danieltarazona.com)
+            if [ "$status" != "200" ]; then
+              echo "::error::Store site returned status $status"
+              exit 1
+            fi
+            echo "✅ Store site is healthy (HTTP $status)"
+
+        - name: Check Medusa API
+          run: |
+            status=$(curl -s -o /dev/null -w "%{http_code}" https://api.danieltarazona.com/health)
+            if [ "$status" != "200" ]; then
+              echo "::warning::Medusa API returned status $status"
+            else
+              echo "✅ Medusa API is healthy (HTTP $status)"
+            fi
+  ```
+
+#### Task 6.2.10: Workflow Best Practices
+
+- [ ] **Task 6.2.10**: Implement GitHub Actions best practices
+
+  **Security Best Practices:**
+
+  | Practice | Implementation |
+  |----------|----------------|
+  | Least privilege | Use minimal permissions in `permissions:` block |
+  | Pin action versions | Use SHA hashes instead of tags (e.g., `actions/checkout@a1b2c3d...`) |
+  | Secrets management | Never log secrets, use `${{ secrets.* }}` |
+  | Environment protection | Use GitHub Environments for production deployments |
+  | Branch protection | Require PR reviews before merging to main |
+
+  **Performance Best Practices:**
+
+  | Practice | Implementation |
+  |----------|----------------|
+  | Caching | Use `actions/cache` or built-in caching (e.g., `actions/setup-node` cache) |
+  | Parallelization | Run independent jobs concurrently |
+  | Path filtering | Only run workflows when relevant files change |
+  | Artifact passing | Use `actions/upload-artifact` and `download-artifact` between jobs |
+  | Timeout limits | Set reasonable `timeout-minutes` on all jobs |
+
+  **Workflow Structure Template:**
+
+  ```yaml
+  name: Descriptive Workflow Name
+
+  on:
+    # Define specific triggers
+    push:
+      branches: [main]
+      paths: ['relevant/**']
+    pull_request:
+      branches: [main]
+    workflow_dispatch:  # Allow manual triggers
+
+  # Limit permissions to minimum required
+  permissions:
+    contents: read
+    # Add other permissions as needed
+
+  # Define reusable environment variables
+  env:
+    NODE_VERSION: '20'
+
+  jobs:
+    job-name:
+      name: Human-Readable Job Name
+      runs-on: ubuntu-latest
+      timeout-minutes: 15  # Always set a timeout
+
+      steps:
+        - name: Descriptive step name
+          uses: action/name@v1
+          with:
+            parameter: value
+  ```
+
+  **Reusable Workflows (`.github/workflows/reusable-build.yml`):**
+
+  ```yaml
+  name: Reusable Build Workflow
+
+  on:
+    workflow_call:
+      inputs:
+        project:
+          required: true
+          type: string
+        node-version:
+          required: false
+          type: string
+          default: '20'
+      secrets:
+        npm-token:
+          required: false
+
+  jobs:
+    build:
+      name: Build ${{ inputs.project }}
+      runs-on: ubuntu-latest
+      timeout-minutes: 15
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: ${{ inputs.node-version }}
+
+        - name: Install and build
+          working-directory: ${{ inputs.project }}
+          run: |
+            npm ci
+            npm run build
+  ```
+
+  **Using Reusable Workflows:**
+
+  ```yaml
+  name: Build All Projects
+
+  on:
+    push:
+      branches: [main]
+
+  jobs:
+    build-portfolio:
+      uses: ./.github/workflows/reusable-build.yml
+      with:
+        project: portfolio
+
+    build-store:
+      uses: ./.github/workflows/reusable-build.yml
+      with:
+        project: store
+  ```
+
 ### Phase 5: Deployment & Orchestration - Task Summary
 
 | Task ID | Description | Status |
@@ -11196,6 +12491,16 @@ This phase covers the setup and configuration of Coolify as a self-hosted deploy
 | 6.1.12 | Set up automated backups | [ ] |
 | 6.1.13 | Configure monitoring and logging | [ ] |
 | 6.1.14 | Set up scaling options | [ ] |
+| 6.2.1 | Configure GitHub repository secrets | [ ] |
+| 6.2.2 | Create portfolio site deployment workflow | [ ] |
+| 6.2.3 | Create store frontend deployment workflow | [ ] |
+| 6.2.4 | Create Medusa backend deployment workflow | [ ] |
+| 6.2.5 | Create unified CI/CD workflow | [ ] |
+| 6.2.6 | Configure Cloudflare Pages projects | [ ] |
+| 6.2.7 | Configure Coolify webhooks | [ ] |
+| 6.2.8 | Configure deployment notifications | [ ] |
+| 6.2.9 | Create scheduled maintenance workflows | [ ] |
+| 6.2.10 | Implement GitHub Actions best practices | [ ] |
 
 ### Coolify Resources & Documentation
 
@@ -11207,6 +12512,21 @@ This phase covers the setup and configuration of Coolify as a self-hosted deploy
 | Docker Documentation | https://docs.docker.com/ |
 | Traefik Documentation | https://doc.traefik.io/traefik/ |
 | Cloudflare Tunnel | https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/ |
+
+### GitHub Actions Resources & Documentation
+
+| Resource | URL |
+|----------|-----|
+| GitHub Actions Documentation | https://docs.github.com/en/actions |
+| GitHub Actions Marketplace | https://github.com/marketplace?type=actions |
+| Workflow Syntax Reference | https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions |
+| Cloudflare Pages Action | https://github.com/cloudflare/pages-action |
+| Reusable Workflows | https://docs.github.com/en/actions/using-workflows/reusing-workflows |
+| GitHub Environments | https://docs.github.com/en/actions/deployment/targeting-different-environments |
+| Security Hardening | https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions |
+| Secrets Management | https://docs.github.com/en/actions/security-guides/encrypted-secrets |
+| GitHub CLI | https://cli.github.com/ |
+| Wrangler CLI | https://developers.cloudflare.com/workers/wrangler/ |
 
 ---
 
