@@ -6089,4 +6089,1817 @@ CHECKOUT FLOW (Client-side Multi-step Process):
 
 ---
 
+### Task 4.3: Contact Form Implementation
+
+This section covers the complete implementation of the contact form feature for the portfolio site (`danieltarazona.com`). The contact form allows visitors to send messages that are persisted to Supabase PostgreSQL and trigger email notifications.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                        CONTACT FORM ARCHITECTURE                                          │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────┐│
+│  │                         PORTFOLIO SITE (danieltarazona.com)                          ││
+│  │                                                                                       ││
+│  │   ┌──────────────────────────────────────────────────────────────────────────────┐  ││
+│  │   │                    ContactForm.tsx (React Island)                             │  ││
+│  │   │                                                                               │  ││
+│  │   │   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐  │  ││
+│  │   │   │   Form Fields   │  │   Validation    │  │    Submission State         │  │  ││
+│  │   │   │   ─────────────  │  │   ────────────  │  │   ─────────────────────────  │  │  ││
+│  │   │   │   • name        │  │   • required    │  │   • idle                    │  │  ││
+│  │   │   │   • email       │  │   • email fmt   │  │   • submitting              │  │  ││
+│  │   │   │   • subject     │  │   • min length  │  │   • success                 │  │  ││
+│  │   │   │   • message     │  │   • max length  │  │   • error                   │  │  ││
+│  │   │   │   • honeypot    │  │   • honeypot    │  │                             │  │  ││
+│  │   │   └─────────────────┘  └─────────────────┘  └─────────────────────────────┘  │  ││
+│  │   │                              │                                                │  ││
+│  │   └──────────────────────────────┼────────────────────────────────────────────────┘  ││
+│  │                                  │                                                    ││
+│  │                                  ▼                                                    ││
+│  │   ┌──────────────────────────────────────────────────────────────────────────────┐  ││
+│  │   │                      contact.ts (API Client)                                  │  ││
+│  │   │                                                                               │  ││
+│  │   │   submitContactForm(data) ──┬── Option A: Direct Supabase Insert             │  ││
+│  │   │                             └── Option B: Edge Function/Worker API            │  ││
+│  │   └──────────────────────────────────────────────────────────────────────────────┘  ││
+│  │                                  │                                                    ││
+│  └──────────────────────────────────┼────────────────────────────────────────────────────┘│
+│                                     │                                                     │
+│                                     │ HTTPS                                               │
+│                                     ▼                                                     │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────┐│
+│  │                    BACKEND OPTIONS (Choose One)                                      ││
+│  │                                                                                       ││
+│  │   ┌─────────────────────────┐     ┌─────────────────────────────────────────────┐   ││
+│  │   │  Option A: Supabase     │     │  Option B: Cloudflare Workers/Deno Deploy   │   ││
+│  │   │  ───────────────────────│     │  ──────────────────────────────────────────  │   ││
+│  │   │  • Direct client insert │     │  • Server-side validation                   │   ││
+│  │   │  • RLS policies         │     │  • Rate limiting                            │   ││
+│  │   │  • Edge Functions for   │     │  • Spam protection                          │   ││
+│  │   │    email notifications  │     │  • Email via Resend/SendGrid                │   ││
+│  │   │  • Simple setup         │     │  • More control over processing             │   ││
+│  │   │  • Good for low traffic │     │  • Better for production scale              │   ││
+│  │   └───────────┬─────────────┘     └───────────────────┬─────────────────────────┘   ││
+│  │               │                                        │                              ││
+│  │               └────────────────────┬───────────────────┘                              ││
+│  │                                    │                                                   ││
+│  │                                    ▼                                                   ││
+│  │   ┌──────────────────────────────────────────────────────────────────────────────┐   ││
+│  │   │                    Supabase PostgreSQL                                        │   ││
+│  │   │                                                                               │   ││
+│  │   │   contact_submissions table:                                                  │   ││
+│  │   │   ┌─────────────────────────────────────────────────────────────────────┐    │   ││
+│  │   │   │ id | name | email | subject | message | ip_address | created_at | ... │    │   ││
+│  │   │   └─────────────────────────────────────────────────────────────────────┘    │   ││
+│  │   │                                                                               │   ││
+│  │   └──────────────────────────────────────────────────────────────────────────────┘   ││
+│  │                                    │                                                   ││
+│  │                                    ▼                                                   ││
+│  │   ┌──────────────────────────────────────────────────────────────────────────────┐   ││
+│  │   │                    Email Notification Service                                 │   ││
+│  │   │                                                                               │   ││
+│  │   │   Options: Resend │ SendGrid │ AWS SES │ Postmark                            │   ││
+│  │   │   → Sends email to contact@danieltarazona.com on new submission              │   ││
+│  │   └──────────────────────────────────────────────────────────────────────────────┘   ││
+│  │                                                                                       ││
+│  └─────────────────────────────────────────────────────────────────────────────────────┘│
+│                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Task 4.3.1: Contact Form React Component
+
+- [ ] **Task 4.3.1**: Create interactive contact form component with React
+
+  The contact form uses React for interactivity (client-side validation, submission state) while the rest of the contact page remains static Astro.
+
+  **src/components/ContactForm.tsx:**
+  ```tsx
+  import { useState, type FormEvent, type ChangeEvent } from 'react';
+
+  // Form field state type
+  interface FormData {
+    name: string;
+    email: string;
+    subject: string;
+    message: string;
+    honeypot: string; // Spam protection - hidden field
+  }
+
+  // Validation error state type
+  interface FormErrors {
+    name?: string;
+    email?: string;
+    subject?: string;
+    message?: string;
+  }
+
+  // Submission state type
+  type SubmissionState = 'idle' | 'submitting' | 'success' | 'error';
+
+  // API response type
+  interface SubmissionResult {
+    success: boolean;
+    message?: string;
+    error?: string;
+  }
+
+  // Props for customization
+  interface ContactFormProps {
+    /** API endpoint URL for form submission */
+    apiEndpoint?: string;
+    /** Success message to display after submission */
+    successMessage?: string;
+    /** Error message to display on submission failure */
+    errorMessage?: string;
+    /** Recipient email for display purposes */
+    recipientEmail?: string;
+  }
+
+  const initialFormData: FormData = {
+    name: '',
+    email: '',
+    subject: '',
+    message: '',
+    honeypot: '',
+  };
+
+  export default function ContactForm({
+    apiEndpoint = '/api/contact',
+    successMessage = 'Thank you for your message! I\'ll get back to you soon.',
+    errorMessage = 'Something went wrong. Please try again or email me directly.',
+    recipientEmail = 'contact@danieltarazona.com',
+  }: ContactFormProps) {
+    // Form state
+    const [formData, setFormData] = useState<FormData>(initialFormData);
+    const [errors, setErrors] = useState<FormErrors>({});
+    const [submissionState, setSubmissionState] = useState<SubmissionState>('idle');
+    const [serverMessage, setServerMessage] = useState<string>('');
+
+    // Validation rules
+    const validateField = (name: keyof FormData, value: string): string | undefined => {
+      switch (name) {
+        case 'name':
+          if (!value.trim()) return 'Name is required';
+          if (value.trim().length < 2) return 'Name must be at least 2 characters';
+          if (value.trim().length > 100) return 'Name must be less than 100 characters';
+          return undefined;
+
+        case 'email':
+          if (!value.trim()) return 'Email is required';
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(value.trim())) return 'Please enter a valid email address';
+          return undefined;
+
+        case 'subject':
+          if (value.trim().length > 200) return 'Subject must be less than 200 characters';
+          return undefined;
+
+        case 'message':
+          if (!value.trim()) return 'Message is required';
+          if (value.trim().length < 10) return 'Message must be at least 10 characters';
+          if (value.trim().length > 5000) return 'Message must be less than 5000 characters';
+          return undefined;
+
+        default:
+          return undefined;
+      }
+    };
+
+    // Validate entire form
+    const validateForm = (): boolean => {
+      const newErrors: FormErrors = {};
+      let isValid = true;
+
+      (['name', 'email', 'subject', 'message'] as const).forEach((field) => {
+        const error = validateField(field, formData[field]);
+        if (error) {
+          newErrors[field] = error;
+          isValid = false;
+        }
+      });
+
+      setErrors(newErrors);
+      return isValid;
+    };
+
+    // Handle input changes with live validation
+    const handleChange = (
+      e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    ) => {
+      const { name, value } = e.target;
+      setFormData((prev) => ({ ...prev, [name]: value }));
+
+      // Clear error when user starts typing
+      if (errors[name as keyof FormErrors]) {
+        setErrors((prev) => ({ ...prev, [name]: undefined }));
+      }
+    };
+
+    // Handle blur for field validation
+    const handleBlur = (
+      e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    ) => {
+      const { name, value } = e.target;
+      const error = validateField(name as keyof FormData, value);
+      if (error) {
+        setErrors((prev) => ({ ...prev, [name]: error }));
+      }
+    };
+
+    // Submit form
+    const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+
+      // Check honeypot (spam bot protection)
+      if (formData.honeypot) {
+        // Silently "succeed" to fool bots
+        setSubmissionState('success');
+        return;
+      }
+
+      // Validate form
+      if (!validateForm()) {
+        return;
+      }
+
+      setSubmissionState('submitting');
+      setServerMessage('');
+
+      try {
+        const response = await fetch(apiEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            subject: formData.subject.trim() || undefined,
+            message: formData.message.trim(),
+          }),
+        });
+
+        const result: SubmissionResult = await response.json();
+
+        if (response.ok && result.success) {
+          setSubmissionState('success');
+          setFormData(initialFormData);
+        } else {
+          setSubmissionState('error');
+          setServerMessage(result.error || errorMessage);
+        }
+      } catch (error) {
+        setSubmissionState('error');
+        setServerMessage(errorMessage);
+      }
+    };
+
+    // Reset form to try again
+    const handleReset = () => {
+      setSubmissionState('idle');
+      setServerMessage('');
+      setErrors({});
+    };
+
+    // Success state
+    if (submissionState === 'success') {
+      return (
+        <div className="contact-form-success" role="alert">
+          <div className="success-icon">✓</div>
+          <h3>Message Sent!</h3>
+          <p>{successMessage}</p>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="btn btn-secondary"
+          >
+            Send Another Message
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <form
+        onSubmit={handleSubmit}
+        className="contact-form"
+        noValidate
+        aria-label="Contact form"
+      >
+        {/* Error banner */}
+        {submissionState === 'error' && serverMessage && (
+          <div className="form-error-banner" role="alert">
+            <p>{serverMessage}</p>
+            <p>
+              You can also email me directly at{' '}
+              <a href={`mailto:${recipientEmail}`}>{recipientEmail}</a>
+            </p>
+          </div>
+        )}
+
+        {/* Honeypot field - hidden from users, visible to bots */}
+        <div className="honeypot" aria-hidden="true">
+          <label htmlFor="honeypot">Leave this field empty</label>
+          <input
+            type="text"
+            id="honeypot"
+            name="honeypot"
+            value={formData.honeypot}
+            onChange={handleChange}
+            tabIndex={-1}
+            autoComplete="off"
+          />
+        </div>
+
+        {/* Name field */}
+        <div className="form-group">
+          <label htmlFor="name">
+            Name <span className="required">*</span>
+          </label>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            required
+            autoComplete="name"
+            maxLength={100}
+            disabled={submissionState === 'submitting'}
+            aria-invalid={errors.name ? 'true' : 'false'}
+            aria-describedby={errors.name ? 'name-error' : undefined}
+            className={errors.name ? 'input-error' : ''}
+          />
+          {errors.name && (
+            <span id="name-error" className="field-error" role="alert">
+              {errors.name}
+            </span>
+          )}
+        </div>
+
+        {/* Email field */}
+        <div className="form-group">
+          <label htmlFor="email">
+            Email <span className="required">*</span>
+          </label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            required
+            autoComplete="email"
+            disabled={submissionState === 'submitting'}
+            aria-invalid={errors.email ? 'true' : 'false'}
+            aria-describedby={errors.email ? 'email-error' : undefined}
+            className={errors.email ? 'input-error' : ''}
+          />
+          {errors.email && (
+            <span id="email-error" className="field-error" role="alert">
+              {errors.email}
+            </span>
+          )}
+        </div>
+
+        {/* Subject field (optional) */}
+        <div className="form-group">
+          <label htmlFor="subject">Subject</label>
+          <input
+            type="text"
+            id="subject"
+            name="subject"
+            value={formData.subject}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            maxLength={200}
+            disabled={submissionState === 'submitting'}
+            aria-invalid={errors.subject ? 'true' : 'false'}
+            aria-describedby={errors.subject ? 'subject-error' : undefined}
+            className={errors.subject ? 'input-error' : ''}
+          />
+          {errors.subject && (
+            <span id="subject-error" className="field-error" role="alert">
+              {errors.subject}
+            </span>
+          )}
+        </div>
+
+        {/* Message field */}
+        <div className="form-group">
+          <label htmlFor="message">
+            Message <span className="required">*</span>
+          </label>
+          <textarea
+            id="message"
+            name="message"
+            value={formData.message}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            required
+            rows={6}
+            maxLength={5000}
+            disabled={submissionState === 'submitting'}
+            aria-invalid={errors.message ? 'true' : 'false'}
+            aria-describedby={errors.message ? 'message-error' : undefined}
+            className={errors.message ? 'input-error' : ''}
+          />
+          {errors.message && (
+            <span id="message-error" className="field-error" role="alert">
+              {errors.message}
+            </span>
+          )}
+          <span className="character-count">
+            {formData.message.length}/5000 characters
+          </span>
+        </div>
+
+        {/* Submit button */}
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={submissionState === 'submitting'}
+        >
+          {submissionState === 'submitting' ? (
+            <>
+              <span className="spinner" aria-hidden="true"></span>
+              Sending...
+            </>
+          ) : (
+            'Send Message'
+          )}
+        </button>
+      </form>
+    );
+  }
+  ```
+
+#### Task 4.3.2: Contact Form Styles
+
+- [ ] **Task 4.3.2**: Create CSS styles for the contact form
+
+  **src/styles/contact-form.css:**
+  ```css
+  /* Contact Form Styles */
+
+  .contact-form {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--color-text);
+  }
+
+  .form-group .required {
+    color: var(--color-error, #dc2626);
+  }
+
+  .form-group input,
+  .form-group textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    font-family: inherit;
+    background-color: var(--color-bg-input, #fff);
+    color: var(--color-text);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .form-group input:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: var(--color-primary, #3b82f6);
+    box-shadow: 0 0 0 3px var(--color-primary-alpha, rgba(59, 130, 246, 0.1));
+  }
+
+  .form-group input.input-error,
+  .form-group textarea.input-error {
+    border-color: var(--color-error, #dc2626);
+  }
+
+  .form-group input.input-error:focus,
+  .form-group textarea.input-error:focus {
+    box-shadow: 0 0 0 3px var(--color-error-alpha, rgba(220, 38, 38, 0.1));
+  }
+
+  .form-group input:disabled,
+  .form-group textarea:disabled {
+    background-color: var(--color-bg-disabled, #f3f4f6);
+    cursor: not-allowed;
+  }
+
+  .field-error {
+    display: block;
+    margin-top: 0.5rem;
+    color: var(--color-error, #dc2626);
+    font-size: 0.875rem;
+  }
+
+  .character-count {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--color-text-muted, #6b7280);
+    font-size: 0.75rem;
+    text-align: right;
+  }
+
+  /* Honeypot field - hide from visual users */
+  .honeypot {
+    position: absolute;
+    left: -9999px;
+    opacity: 0;
+    height: 0;
+    overflow: hidden;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+  }
+
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background-color: var(--color-primary, #3b82f6);
+    color: white;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--color-primary-dark, #2563eb);
+  }
+
+  .btn-primary:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .btn-secondary {
+    background-color: var(--color-bg-secondary, #f3f4f6);
+    color: var(--color-text);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--color-bg-secondary-dark, #e5e7eb);
+  }
+
+  /* Loading spinner */
+  .spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Error banner */
+  .form-error-banner {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    background-color: var(--color-error-bg, #fef2f2);
+    border: 1px solid var(--color-error-border, #fecaca);
+    border-radius: 0.5rem;
+    color: var(--color-error-text, #991b1b);
+  }
+
+  .form-error-banner p {
+    margin: 0;
+  }
+
+  .form-error-banner p + p {
+    margin-top: 0.5rem;
+  }
+
+  .form-error-banner a {
+    color: var(--color-error-text, #991b1b);
+    text-decoration: underline;
+  }
+
+  /* Success state */
+  .contact-form-success {
+    text-align: center;
+    padding: 2rem;
+  }
+
+  .success-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 4rem;
+    height: 4rem;
+    margin-bottom: 1rem;
+    background-color: var(--color-success-bg, #dcfce7);
+    color: var(--color-success, #16a34a);
+    border-radius: 50%;
+    font-size: 2rem;
+  }
+
+  .contact-form-success h3 {
+    margin: 0 0 0.5rem;
+    color: var(--color-text);
+  }
+
+  .contact-form-success p {
+    margin: 0 0 1.5rem;
+    color: var(--color-text-muted);
+  }
+
+  /* Dark mode support */
+  @media (prefers-color-scheme: dark) {
+    .form-group input,
+    .form-group textarea {
+      background-color: var(--color-bg-input-dark, #1f2937);
+      border-color: var(--color-border-dark, #374151);
+    }
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 640px) {
+    .contact-form {
+      padding: 0 1rem;
+    }
+
+    .btn {
+      width: 100%;
+    }
+  }
+  ```
+
+#### Task 4.3.3: Contact Page Integration
+
+- [ ] **Task 4.3.3**: Create the contact page with the form component
+
+  **src/pages/contact.astro:**
+  ```astro
+  ---
+  import PageLayout from '@layouts/PageLayout.astro';
+  import ContactForm from '@components/ContactForm';
+
+  // Contact page metadata
+  const title = 'Contact';
+  const description = 'Get in touch with Daniel Tarazona. Send a message for project inquiries, collaborations, or just to say hello.';
+
+  // Contact form configuration
+  const contactEmail = import.meta.env.PUBLIC_CONTACT_EMAIL || 'contact@danieltarazona.com';
+  const apiEndpoint = import.meta.env.PUBLIC_CONTACT_API || '/api/contact';
+  ---
+
+  <PageLayout title={title} description={description}>
+    <main class="contact-page">
+      <div class="container">
+        <header class="page-header">
+          <h1>Get in Touch</h1>
+          <p class="lead">
+            Have a question, project idea, or just want to say hello?
+            I'd love to hear from you. Fill out the form below and I'll get back to you as soon as possible.
+          </p>
+        </header>
+
+        <div class="contact-content">
+          <section class="contact-form-section">
+            <ContactForm
+              client:load
+              apiEndpoint={apiEndpoint}
+              recipientEmail={contactEmail}
+              successMessage="Thank you for reaching out! I typically respond within 24-48 hours."
+              errorMessage="Oops! Something went wrong. Please try again or email me directly."
+            />
+          </section>
+
+          <aside class="contact-info">
+            <h2>Other Ways to Connect</h2>
+
+            <div class="contact-method">
+              <h3>Email</h3>
+              <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
+            </div>
+
+            <div class="contact-method">
+              <h3>Social Media</h3>
+              <ul class="social-links">
+                <li>
+                  <a href="https://github.com/danieltarazona" target="_blank" rel="noopener noreferrer">
+                    GitHub
+                  </a>
+                </li>
+                <li>
+                  <a href="https://linkedin.com/in/danieltarazona" target="_blank" rel="noopener noreferrer">
+                    LinkedIn
+                  </a>
+                </li>
+                <li>
+                  <a href="https://twitter.com/danieltarazona" target="_blank" rel="noopener noreferrer">
+                    Twitter
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            <div class="contact-method">
+              <h3>Response Time</h3>
+              <p>I typically respond to messages within 24-48 hours during weekdays.</p>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </PageLayout>
+
+  <style>
+    /* Import contact form styles */
+    @import '../styles/contact-form.css';
+
+    .contact-page {
+      padding: 4rem 0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    .page-header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .page-header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .lead {
+      font-size: 1.125rem;
+      color: var(--color-text-muted);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .contact-content {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 4rem;
+      align-items: start;
+    }
+
+    .contact-info {
+      position: sticky;
+      top: 2rem;
+    }
+
+    .contact-info h2 {
+      font-size: 1.25rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .contact-method {
+      margin-bottom: 1.5rem;
+    }
+
+    .contact-method h3 {
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .contact-method a {
+      color: var(--color-primary);
+      text-decoration: none;
+    }
+
+    .contact-method a:hover {
+      text-decoration: underline;
+    }
+
+    .social-links {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .social-links li {
+      margin-bottom: 0.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .contact-content {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+      }
+
+      .contact-info {
+        position: static;
+        order: 2;
+      }
+
+      .contact-form-section {
+        order: 1;
+      }
+    }
+  </style>
+  ```
+
+#### Task 4.3.4: Validation Utilities
+
+- [ ] **Task 4.3.4**: Create shared validation utilities
+
+  **src/lib/validation.ts:**
+  ```typescript
+  /**
+   * Contact form validation utilities
+   * Shared between client-side and server-side validation
+   */
+
+  // Validation result type
+  export interface ValidationResult {
+    isValid: boolean;
+    errors: Record<string, string>;
+  }
+
+  // Contact form data type
+  export interface ContactFormData {
+    name: string;
+    email: string;
+    subject?: string;
+    message: string;
+  }
+
+  // Email regex pattern (RFC 5322 simplified)
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  // Field length limits
+  export const FIELD_LIMITS = {
+    name: { min: 2, max: 100 },
+    email: { max: 254 },
+    subject: { max: 200 },
+    message: { min: 10, max: 5000 },
+  } as const;
+
+  /**
+   * Validate a single field
+   */
+  export function validateField(
+    field: keyof ContactFormData,
+    value: string
+  ): string | null {
+    const trimmedValue = value.trim();
+
+    switch (field) {
+      case 'name':
+        if (!trimmedValue) return 'Name is required';
+        if (trimmedValue.length < FIELD_LIMITS.name.min)
+          return `Name must be at least ${FIELD_LIMITS.name.min} characters`;
+        if (trimmedValue.length > FIELD_LIMITS.name.max)
+          return `Name must be less than ${FIELD_LIMITS.name.max} characters`;
+        return null;
+
+      case 'email':
+        if (!trimmedValue) return 'Email is required';
+        if (!EMAIL_REGEX.test(trimmedValue))
+          return 'Please enter a valid email address';
+        if (trimmedValue.length > FIELD_LIMITS.email.max)
+          return `Email must be less than ${FIELD_LIMITS.email.max} characters`;
+        return null;
+
+      case 'subject':
+        if (trimmedValue.length > FIELD_LIMITS.subject.max)
+          return `Subject must be less than ${FIELD_LIMITS.subject.max} characters`;
+        return null;
+
+      case 'message':
+        if (!trimmedValue) return 'Message is required';
+        if (trimmedValue.length < FIELD_LIMITS.message.min)
+          return `Message must be at least ${FIELD_LIMITS.message.min} characters`;
+        if (trimmedValue.length > FIELD_LIMITS.message.max)
+          return `Message must be less than ${FIELD_LIMITS.message.max} characters`;
+        return null;
+
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Validate entire contact form data
+   */
+  export function validateContactForm(data: ContactFormData): ValidationResult {
+    const errors: Record<string, string> = {};
+
+    const nameError = validateField('name', data.name);
+    if (nameError) errors.name = nameError;
+
+    const emailError = validateField('email', data.email);
+    if (emailError) errors.email = emailError;
+
+    if (data.subject) {
+      const subjectError = validateField('subject', data.subject);
+      if (subjectError) errors.subject = subjectError;
+    }
+
+    const messageError = validateField('message', data.message);
+    if (messageError) errors.message = messageError;
+
+    return {
+      isValid: Object.keys(errors).length === 0,
+      errors,
+    };
+  }
+
+  /**
+   * Sanitize input by trimming and removing dangerous characters
+   */
+  export function sanitizeInput(value: string): string {
+    return value
+      .trim()
+      .replace(/[<>]/g, '') // Remove angle brackets
+      .slice(0, 10000); // Hard limit
+  }
+
+  /**
+   * Sanitize contact form data
+   */
+  export function sanitizeContactForm(data: ContactFormData): ContactFormData {
+    return {
+      name: sanitizeInput(data.name),
+      email: sanitizeInput(data.email).toLowerCase(),
+      subject: data.subject ? sanitizeInput(data.subject) : undefined,
+      message: sanitizeInput(data.message),
+    };
+  }
+  ```
+
+#### Task 4.3.5: Supabase Table Schema
+
+- [ ] **Task 4.3.5**: Ensure contact_submissions table is properly configured
+
+  The table schema was defined in Phase 2 (Task 3.8). This task ensures the schema is complete and optimized:
+
+  **supabase/migrations/YYYYMMDD_contact_form_enhancements.sql:**
+  ```sql
+  -- Contact Form Table Enhancements
+  -- Run after the initial contact_submissions table creation
+
+  -- Add spam score column for future ML-based spam detection
+  ALTER TABLE contact_submissions
+    ADD COLUMN IF NOT EXISTS spam_score DECIMAL(3,2) DEFAULT 0.00,
+    ADD COLUMN IF NOT EXISTS is_spam BOOLEAN DEFAULT FALSE;
+
+  -- Add notification tracking
+  ALTER TABLE contact_submissions
+    ADD COLUMN IF NOT EXISTS notification_sent_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS notification_failed BOOLEAN DEFAULT FALSE;
+
+  -- Add source tracking
+  ALTER TABLE contact_submissions
+    ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'website';
+
+  -- Create indexes for common queries
+  CREATE INDEX IF NOT EXISTS idx_contact_email ON contact_submissions(email);
+  CREATE INDEX IF NOT EXISTS idx_contact_spam ON contact_submissions(is_spam)
+    WHERE is_spam = FALSE;
+  CREATE INDEX IF NOT EXISTS idx_contact_notifications ON contact_submissions(notification_sent_at)
+    WHERE notification_sent_at IS NULL AND notification_failed = FALSE;
+
+  -- Update RLS policies for enhanced security
+  DROP POLICY IF EXISTS "Allow anonymous contact submission" ON contact_submissions;
+
+  CREATE POLICY "Allow anonymous contact submission v2" ON contact_submissions
+    FOR INSERT TO anon
+    WITH CHECK (
+      -- Only allow inserts, not updates
+      true
+      -- Rate limiting should be handled at the edge (Workers/Functions)
+    );
+
+  -- Function to check for duplicate submissions (spam prevention)
+  CREATE OR REPLACE FUNCTION check_duplicate_submission(
+    p_email VARCHAR,
+    p_message_hash VARCHAR,
+    p_window_minutes INT DEFAULT 5
+  ) RETURNS BOOLEAN AS $$
+  BEGIN
+    RETURN EXISTS (
+      SELECT 1 FROM contact_submissions
+      WHERE email = p_email
+        AND md5(message) = p_message_hash
+        AND created_at > NOW() - (p_window_minutes || ' minutes')::interval
+    );
+  END;
+  $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+  -- Grant execute permission
+  GRANT EXECUTE ON FUNCTION check_duplicate_submission TO anon;
+
+  -- Comment updates
+  COMMENT ON COLUMN contact_submissions.spam_score IS 'Spam probability score from 0.00 to 1.00';
+  COMMENT ON COLUMN contact_submissions.is_spam IS 'Whether the submission was marked as spam';
+  COMMENT ON COLUMN contact_submissions.notification_sent_at IS 'When email notification was successfully sent';
+  COMMENT ON COLUMN contact_submissions.source IS 'Source of submission (website, api, etc)';
+  ```
+
+#### Task 4.3.6: API Endpoint (Cloudflare Workers)
+
+- [ ] **Task 4.3.6**: Create Cloudflare Worker for contact form API
+
+  **functions/api/contact.ts (Cloudflare Pages Function):**
+  ```typescript
+  /**
+   * Contact Form API Endpoint
+   * Cloudflare Pages Function / Cloudflare Worker
+   *
+   * Handles contact form submissions with:
+   * - Server-side validation
+   * - Rate limiting
+   * - Spam detection
+   * - Database persistence
+   * - Email notifications
+   */
+
+  import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+  interface Env {
+    SUPABASE_URL: string;
+    SUPABASE_SERVICE_ROLE_KEY: string;
+    RESEND_API_KEY?: string;
+    NOTIFICATION_EMAIL: string;
+    RATE_LIMIT_KV?: KVNamespace;
+  }
+
+  interface ContactPayload {
+    name: string;
+    email: string;
+    subject?: string;
+    message: string;
+  }
+
+  interface RateLimitResult {
+    allowed: boolean;
+    remaining: number;
+    resetAt: number;
+  }
+
+  // CORS headers
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+
+  // Rate limiting configuration
+  const RATE_LIMIT = {
+    maxRequests: 5,
+    windowMs: 60 * 60 * 1000, // 1 hour
+  };
+
+  // Validation
+  function validatePayload(payload: unknown): ContactPayload | null {
+    if (!payload || typeof payload !== 'object') return null;
+
+    const data = payload as Record<string, unknown>;
+
+    if (
+      typeof data.name !== 'string' ||
+      typeof data.email !== 'string' ||
+      typeof data.message !== 'string'
+    ) {
+      return null;
+    }
+
+    const name = data.name.trim();
+    const email = data.email.trim().toLowerCase();
+    const subject = typeof data.subject === 'string' ? data.subject.trim() : undefined;
+    const message = data.message.trim();
+
+    // Length validation
+    if (name.length < 2 || name.length > 100) return null;
+    if (email.length > 254) return null;
+    if (subject && subject.length > 200) return null;
+    if (message.length < 10 || message.length > 5000) return null;
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return null;
+
+    return { name, email, subject, message };
+  }
+
+  // Rate limiting using KV
+  async function checkRateLimit(
+    kv: KVNamespace | undefined,
+    ip: string
+  ): Promise<RateLimitResult> {
+    if (!kv) {
+      // If KV not available, allow request (fallback)
+      return { allowed: true, remaining: RATE_LIMIT.maxRequests, resetAt: 0 };
+    }
+
+    const key = `ratelimit:contact:${ip}`;
+    const now = Date.now();
+    const windowStart = now - RATE_LIMIT.windowMs;
+
+    // Get current count
+    const stored = await kv.get<{ count: number; timestamps: number[] }>(key, 'json');
+
+    if (!stored) {
+      // First request
+      await kv.put(
+        key,
+        JSON.stringify({ count: 1, timestamps: [now] }),
+        { expirationTtl: Math.ceil(RATE_LIMIT.windowMs / 1000) }
+      );
+      return {
+        allowed: true,
+        remaining: RATE_LIMIT.maxRequests - 1,
+        resetAt: now + RATE_LIMIT.windowMs,
+      };
+    }
+
+    // Filter out old timestamps
+    const validTimestamps = stored.timestamps.filter((t) => t > windowStart);
+
+    if (validTimestamps.length >= RATE_LIMIT.maxRequests) {
+      const oldestTimestamp = Math.min(...validTimestamps);
+      return {
+        allowed: false,
+        remaining: 0,
+        resetAt: oldestTimestamp + RATE_LIMIT.windowMs,
+      };
+    }
+
+    // Add new timestamp
+    validTimestamps.push(now);
+    await kv.put(
+      key,
+      JSON.stringify({ count: validTimestamps.length, timestamps: validTimestamps }),
+      { expirationTtl: Math.ceil(RATE_LIMIT.windowMs / 1000) }
+    );
+
+    return {
+      allowed: true,
+      remaining: RATE_LIMIT.maxRequests - validTimestamps.length,
+      resetAt: Math.min(...validTimestamps) + RATE_LIMIT.windowMs,
+    };
+  }
+
+  // Simple spam detection
+  function calculateSpamScore(payload: ContactPayload): number {
+    let score = 0;
+
+    // Check for common spam patterns
+    const spamPatterns = [
+      /\b(viagra|cialis|casino|lottery|winner|prize)\b/i,
+      /\b(click here|buy now|limited time|act now)\b/i,
+      /https?:\/\/[^\s]+/g, // Multiple URLs
+    ];
+
+    const fullText = `${payload.name} ${payload.subject || ''} ${payload.message}`;
+
+    for (const pattern of spamPatterns) {
+      const matches = fullText.match(pattern);
+      if (matches) {
+        score += 0.2 * matches.length;
+      }
+    }
+
+    // Check for all caps
+    if (payload.message === payload.message.toUpperCase() && payload.message.length > 20) {
+      score += 0.3;
+    }
+
+    // Check for excessive special characters
+    const specialCharRatio = (payload.message.match(/[!@#$%^&*()]/g) || []).length / payload.message.length;
+    if (specialCharRatio > 0.1) {
+      score += 0.2;
+    }
+
+    return Math.min(score, 1);
+  }
+
+  // Send email notification
+  async function sendNotification(
+    payload: ContactPayload,
+    env: Env
+  ): Promise<boolean> {
+    if (!env.RESEND_API_KEY) {
+      return false;
+    }
+
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'Contact Form <noreply@danieltarazona.com>',
+          to: env.NOTIFICATION_EMAIL,
+          subject: `New Contact: ${payload.subject || 'No Subject'}`,
+          html: `
+            <h2>New Contact Form Submission</h2>
+            <p><strong>From:</strong> ${payload.name} (${payload.email})</p>
+            <p><strong>Subject:</strong> ${payload.subject || 'No Subject'}</p>
+            <h3>Message:</h3>
+            <p>${payload.message.replace(/\n/g, '<br>')}</p>
+          `,
+          reply_to: payload.email,
+        }),
+      });
+
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  // Main handler
+  export const onRequest: PagesFunction<Env> = async (context) => {
+    const { request, env } = context;
+
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    // Only allow POST
+    if (request.method !== 'POST') {
+      return new Response(
+        JSON.stringify({ error: 'Method not allowed' }),
+        { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    try {
+      // Get client IP for rate limiting
+      const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
+
+      // Check rate limit
+      const rateLimitResult = await checkRateLimit(env.RATE_LIMIT_KV, clientIP);
+
+      if (!rateLimitResult.allowed) {
+        return new Response(
+          JSON.stringify({
+            error: 'Too many requests. Please try again later.',
+            retryAfter: Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000),
+          }),
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+              'Retry-After': String(Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000)),
+              'X-RateLimit-Remaining': '0',
+            },
+          }
+        );
+      }
+
+      // Parse and validate payload
+      let rawPayload: unknown;
+      try {
+        rawPayload = await request.json();
+      } catch {
+        return new Response(
+          JSON.stringify({ error: 'Invalid JSON' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const payload = validatePayload(rawPayload);
+      if (!payload) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid form data. Please check your input.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Calculate spam score
+      const spamScore = calculateSpamScore(payload);
+      const isSpam = spamScore >= 0.7;
+
+      // Create Supabase client
+      const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+
+      // Insert into database
+      const { error: dbError } = await supabase
+        .from('contact_submissions')
+        .insert({
+          name: payload.name,
+          email: payload.email,
+          subject: payload.subject,
+          message: payload.message,
+          ip_address: clientIP,
+          user_agent: request.headers.get('User-Agent'),
+          referrer: request.headers.get('Referer'),
+          spam_score: spamScore,
+          is_spam: isSpam,
+          source: 'website',
+        });
+
+      if (dbError) {
+        throw new Error(`Database error: ${dbError.message}`);
+      }
+
+      // Send email notification (only for non-spam)
+      let notificationSent = false;
+      if (!isSpam) {
+        notificationSent = await sendNotification(payload, env);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Your message has been sent successfully.',
+        }),
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+            'X-RateLimit-Remaining': String(rateLimitResult.remaining),
+          },
+        }
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      return new Response(
+        JSON.stringify({ error: 'An error occurred. Please try again later.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  };
+  ```
+
+#### Task 4.3.7: API Endpoint (Deno Deploy Alternative)
+
+- [ ] **Task 4.3.7**: Create Deno Deploy function as alternative API endpoint
+
+  **api/contact.ts (Deno Deploy):**
+  ```typescript
+  /**
+   * Contact Form API - Deno Deploy
+   * Alternative to Cloudflare Workers
+   */
+
+  import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+  interface ContactPayload {
+    name: string;
+    email: string;
+    subject?: string;
+    message: string;
+  }
+
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+
+  // Rate limiting with Deno KV
+  const kv = await Deno.openKv();
+  const RATE_LIMIT = { maxRequests: 5, windowMs: 3600000 }; // 5 per hour
+
+  async function checkRateLimit(ip: string): Promise<boolean> {
+    const key = ['ratelimit', 'contact', ip];
+    const entry = await kv.get<{ count: number; resetAt: number }>(key);
+    const now = Date.now();
+
+    if (!entry.value || now > entry.value.resetAt) {
+      await kv.set(key, { count: 1, resetAt: now + RATE_LIMIT.windowMs }, {
+        expireIn: RATE_LIMIT.windowMs,
+      });
+      return true;
+    }
+
+    if (entry.value.count >= RATE_LIMIT.maxRequests) {
+      return false;
+    }
+
+    await kv.set(key, { count: entry.value.count + 1, resetAt: entry.value.resetAt }, {
+      expireIn: entry.value.resetAt - now,
+    });
+    return true;
+  }
+
+  function validatePayload(data: unknown): ContactPayload | null {
+    if (!data || typeof data !== 'object') return null;
+
+    const payload = data as Record<string, unknown>;
+
+    if (
+      typeof payload.name !== 'string' ||
+      typeof payload.email !== 'string' ||
+      typeof payload.message !== 'string'
+    ) {
+      return null;
+    }
+
+    const name = payload.name.trim();
+    const email = payload.email.trim().toLowerCase();
+    const subject = typeof payload.subject === 'string' ? payload.subject.trim() : undefined;
+    const message = payload.message.trim();
+
+    // Validation
+    if (name.length < 2 || name.length > 100) return null;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+    if (subject && subject.length > 200) return null;
+    if (message.length < 10 || message.length > 5000) return null;
+
+    return { name, email, subject, message };
+  }
+
+  async function sendNotification(payload: ContactPayload): Promise<boolean> {
+    const resendKey = Deno.env.get('RESEND_API_KEY');
+    const notificationEmail = Deno.env.get('NOTIFICATION_EMAIL');
+
+    if (!resendKey || !notificationEmail) return false;
+
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'Contact Form <noreply@danieltarazona.com>',
+          to: notificationEmail,
+          subject: `New Contact: ${payload.subject || 'No Subject'}`,
+          html: `
+            <h2>New Contact Form Submission</h2>
+            <p><strong>From:</strong> ${payload.name} (${payload.email})</p>
+            <p><strong>Subject:</strong> ${payload.subject || 'No Subject'}</p>
+            <h3>Message:</h3>
+            <p>${payload.message.replace(/\n/g, '<br>')}</p>
+          `,
+          reply_to: payload.email,
+        }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  serve(async (req: Request) => {
+    // CORS preflight
+    if (req.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    if (req.method !== 'POST') {
+      return new Response(
+        JSON.stringify({ error: 'Method not allowed' }),
+        { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    try {
+      // Rate limiting
+      const clientIP = req.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown';
+
+      if (!(await checkRateLimit(clientIP))) {
+        return new Response(
+          JSON.stringify({ error: 'Too many requests. Please try again later.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Parse payload
+      const rawPayload = await req.json();
+      const payload = validatePayload(rawPayload);
+
+      if (!payload) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid form data' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Supabase insert
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      );
+
+      const { error } = await supabase.from('contact_submissions').insert({
+        name: payload.name,
+        email: payload.email,
+        subject: payload.subject,
+        message: payload.message,
+        ip_address: clientIP,
+        user_agent: req.headers.get('User-Agent'),
+        source: 'website-deno',
+      });
+
+      if (error) throw error;
+
+      // Send notification
+      await sendNotification(payload);
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Message sent successfully' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ error: 'An error occurred' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  });
+  ```
+
+  **Deploy to Deno Deploy:**
+  ```bash
+  # Install Deno
+  curl -fsSL https://deno.land/install.sh | sh
+
+  # Install deployctl
+  deno install -A --no-check -r -f https://deno.land/x/deploy/deployctl.ts
+
+  # Deploy
+  deployctl deploy --project=danieltarazona-contact api/contact.ts
+
+  # Set environment variables in Deno Deploy dashboard:
+  # - SUPABASE_URL
+  # - SUPABASE_SERVICE_ROLE_KEY
+  # - RESEND_API_KEY
+  # - NOTIFICATION_EMAIL
+  ```
+
+#### Task 4.3.8: Email Notification Service
+
+- [ ] **Task 4.3.8**: Configure email notification service
+
+  **Email Provider Options:**
+
+  | Provider | Free Tier | Best For |
+  |----------|-----------|----------|
+  | **Resend** | 3,000/month | Modern API, great DX |
+  | **SendGrid** | 100/day | Enterprise features |
+  | **AWS SES** | 62,000/month (EC2) | High volume, AWS users |
+  | **Postmark** | 100/month | Transactional focus |
+
+  **Resend Setup (Recommended):**
+  ```bash
+  # 1. Sign up at https://resend.com
+  # 2. Verify your domain (danieltarazona.com)
+  # 3. Get API key
+  # 4. Set environment variable
+
+  # Environment variables needed:
+  RESEND_API_KEY=re_xxxxxxxxxxxxx
+  NOTIFICATION_EMAIL=contact@danieltarazona.com
+  ```
+
+  **Email Template (`src/lib/email-templates.ts`):**
+  ```typescript
+  /**
+   * Email notification templates
+   */
+
+  interface ContactSubmission {
+    name: string;
+    email: string;
+    subject?: string;
+    message: string;
+    createdAt: Date;
+  }
+
+  export function contactNotificationHtml(submission: ContactSubmission): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #f8f9fa; padding: 20px; border-radius: 8px 8px 0 0; }
+          .content { background: #fff; padding: 20px; border: 1px solid #e9ecef; border-top: none; }
+          .footer { background: #f8f9fa; padding: 15px 20px; border-radius: 0 0 8px 8px; font-size: 12px; color: #6c757d; }
+          .field { margin-bottom: 15px; }
+          .label { font-weight: 600; color: #495057; }
+          .message-box { background: #f8f9fa; padding: 15px; border-radius: 4px; white-space: pre-wrap; }
+          .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: #fff; text-decoration: none; border-radius: 4px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2 style="margin: 0;">📬 New Contact Form Submission</h2>
+          </div>
+          <div class="content">
+            <div class="field">
+              <span class="label">From:</span><br>
+              ${escapeHtml(submission.name)} &lt;${escapeHtml(submission.email)}&gt;
+            </div>
+            <div class="field">
+              <span class="label">Subject:</span><br>
+              ${escapeHtml(submission.subject || 'No Subject')}
+            </div>
+            <div class="field">
+              <span class="label">Message:</span>
+              <div class="message-box">${escapeHtml(submission.message)}</div>
+            </div>
+            <div class="field">
+              <span class="label">Received:</span><br>
+              ${submission.createdAt.toLocaleString('en-US', {
+                dateStyle: 'full',
+                timeStyle: 'short'
+              })}
+            </div>
+            <p style="margin-top: 20px;">
+              <a href="mailto:${escapeHtml(submission.email)}?subject=Re: ${encodeURIComponent(submission.subject || 'Your message')}" class="btn">
+                Reply to ${escapeHtml(submission.name)}
+              </a>
+            </p>
+          </div>
+          <div class="footer">
+            This email was sent from the contact form at danieltarazona.com
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  export function contactNotificationText(submission: ContactSubmission): string {
+    return `
+  New Contact Form Submission
+  ===========================
+
+  From: ${submission.name} <${submission.email}>
+  Subject: ${submission.subject || 'No Subject'}
+  Received: ${submission.createdAt.toLocaleString()}
+
+  Message:
+  ---------
+  ${submission.message}
+
+  ---
+  Reply to this email to respond to ${submission.name}
+    `.trim();
+  }
+
+  function escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+  ```
+
+#### Task 4.3.9: Testing the Contact Form
+
+- [ ] **Task 4.3.9**: Create tests and verify contact form functionality
+
+  **Test checklist:**
+  ```markdown
+  ## Contact Form Testing Checklist
+
+  ### Client-side Validation
+  - [ ] Empty name shows error
+  - [ ] Name < 2 characters shows error
+  - [ ] Empty email shows error
+  - [ ] Invalid email format shows error
+  - [ ] Empty message shows error
+  - [ ] Message < 10 characters shows error
+  - [ ] Subject > 200 characters shows error
+  - [ ] Message > 5000 characters shows error
+  - [ ] Character counter updates in real-time
+  - [ ] Errors clear when user starts typing
+
+  ### Form Submission
+  - [ ] Valid form submits successfully
+  - [ ] Loading state shows during submission
+  - [ ] Success message displays after submission
+  - [ ] Form resets after successful submission
+  - [ ] "Send Another Message" button works
+  - [ ] Error message shows on API failure
+  - [ ] Direct email link shown on error
+
+  ### Accessibility
+  - [ ] Form can be navigated with keyboard
+  - [ ] Error messages are announced by screen readers
+  - [ ] Required fields are marked with aria-required
+  - [ ] Invalid fields have aria-invalid="true"
+  - [ ] Labels are properly associated with inputs
+
+  ### Spam Protection
+  - [ ] Honeypot field is hidden from visual users
+  - [ ] Honeypot field is in tab order (tabindex=-1)
+  - [ ] Bot submissions with honeypot are silently "accepted"
+  - [ ] Rate limiting blocks excessive submissions
+
+  ### Backend/API
+  - [ ] Valid submissions are stored in database
+  - [ ] IP address is recorded
+  - [ ] User agent is recorded
+  - [ ] Spam score is calculated
+  - [ ] Email notification is sent
+  - [ ] Rate limiting returns 429 status
+  - [ ] Invalid JSON returns 400 status
+  - [ ] Validation errors return 400 status
+
+  ### Email Notifications
+  - [ ] Email is received for valid submissions
+  - [ ] Email contains correct sender info
+  - [ ] Reply-to is set to submitter's email
+  - [ ] HTML email renders correctly
+  - [ ] Plain text fallback works
+  ```
+
+  **Manual test commands:**
+  ```bash
+  # Test API endpoint locally
+  curl -X POST http://localhost:4321/api/contact \
+    -H "Content-Type: application/json" \
+    -d '{
+      "name": "Test User",
+      "email": "test@example.com",
+      "subject": "Test Subject",
+      "message": "This is a test message with enough characters."
+    }'
+
+  # Test validation (should fail - message too short)
+  curl -X POST http://localhost:4321/api/contact \
+    -H "Content-Type: application/json" \
+    -d '{
+      "name": "Test",
+      "email": "test@example.com",
+      "message": "Too short"
+    }'
+
+  # Test rate limiting (run multiple times)
+  for i in {1..10}; do
+    curl -X POST http://localhost:4321/api/contact \
+      -H "Content-Type: application/json" \
+      -d '{"name":"Test","email":"test@example.com","message":"Rate limit test message here"}'
+    echo ""
+  done
+
+  # Check database
+  supabase db query "SELECT id, name, email, created_at, spam_score FROM contact_submissions ORDER BY created_at DESC LIMIT 5;"
+  ```
+
+### Phase 3 Task Summary: Contact Form Implementation
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| 4.3.1 | Create ContactForm React component | [ ] |
+| 4.3.2 | Create CSS styles for contact form | [ ] |
+| 4.3.3 | Create contact page with form integration | [ ] |
+| 4.3.4 | Create shared validation utilities | [ ] |
+| 4.3.5 | Configure contact_submissions table enhancements | [ ] |
+| 4.3.6 | Create Cloudflare Workers API endpoint | [ ] |
+| 4.3.7 | Create Deno Deploy API endpoint (alternative) | [ ] |
+| 4.3.8 | Configure email notification service | [ ] |
+| 4.3.9 | Test contact form end-to-end | [ ] |
+
+---
+
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*
