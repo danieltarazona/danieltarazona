@@ -9268,4 +9268,1092 @@ ${data.message}
 
 ---
 
+### Task 5.2: Cloudflare Workers Configuration
+
+This section covers setting up Cloudflare Workers for serverless functions at the edge, including Wrangler CLI setup, project configuration, routing, and integration with the main Astro sites.
+
+#### Why Cloudflare Workers?
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                        CLOUDFLARE WORKERS ARCHITECTURE                                    │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+                              ┌─────────────────┐
+                              │   Incoming      │
+                              │   Request       │
+                              └────────┬────────┘
+                                       │
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              CLOUDFLARE EDGE (300+ PoPs)                                 │
+│                                                                                          │
+│  ┌───────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                            V8 ISOLATES (Sub-ms Cold Start)                         │  │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐                    │  │
+│  │  │ Worker: API     │  │ Worker: Form    │  │ Worker: Proxy   │                    │  │
+│  │  │ /api/*          │  │ /contact        │  │ /medusa/*       │                    │  │
+│  │  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘                    │  │
+│  │           │                    │                    │                             │  │
+│  └───────────┼────────────────────┼────────────────────┼─────────────────────────────┘  │
+│              │                    │                    │                                 │
+│  ┌───────────▼────────────────────▼────────────────────▼─────────────────────────────┐  │
+│  │                           BINDINGS                                                 │  │
+│  │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐       │  │
+│  │  │    KV     │  │    D1     │  │    R2     │  │  Durable  │  │   Queues  │       │  │
+│  │  │  Storage  │  │  Database │  │  Storage  │  │  Objects  │  │           │       │  │
+│  │  └───────────┘  └───────────┘  └───────────┘  └───────────┘  └───────────┘       │  │
+│  └───────────────────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+                              │                    │
+                              ▼                    ▼
+                    ┌──────────────────┐  ┌──────────────────┐
+                    │  Supabase        │  │  Medusa API      │
+                    │  PostgreSQL      │  │  (VPS)           │
+                    └──────────────────┘  └──────────────────┘
+```
+
+#### Cloudflare Workers Features
+
+| Feature | Description | Use Case |
+|---------|-------------|----------|
+| **KV Storage** | Global key-value store | Session data, cache, config |
+| **D1 Database** | SQLite at the edge | Simple relational data |
+| **R2 Storage** | S3-compatible object store | Images, files, backups |
+| **Durable Objects** | Stateful serverless | Real-time collaboration, WebSockets |
+| **Queues** | Message queues | Background jobs, batch processing |
+| **Workers AI** | AI inference at the edge | Text generation, embeddings |
+| **Email Routing** | Email handling | Contact form email |
+
+#### Task 5.2.1: Wrangler CLI Installation
+
+- [ ] **Task 5.2.1**: Install and configure Wrangler CLI
+
+  **Installation Methods:**
+
+  ```bash
+  # Global installation (Recommended)
+  npm install -g wrangler
+
+  # Or with pnpm
+  pnpm add -g wrangler
+
+  # Or with yarn
+  yarn global add wrangler
+
+  # Verify installation
+  wrangler --version
+  # ⛅️ wrangler 3.x.x
+  ```
+
+  **Authentication:**
+
+  ```bash
+  # Login to Cloudflare (opens browser)
+  wrangler login
+
+  # Verify authentication
+  wrangler whoami
+  # 👋 You are logged in with an OAuth Token, associated with the email: your@email.com
+
+  # Alternative: API Token authentication
+  # Create token at: https://dash.cloudflare.com/profile/api-tokens
+  # Required permissions: Workers Scripts:Edit, Account Settings:Read
+  export CLOUDFLARE_API_TOKEN="your-api-token"
+  ```
+
+  **Wrangler CLI Reference:**
+
+  | Command | Purpose | Example |
+  |---------|---------|---------|
+  | `wrangler init` | Create new Worker project | `wrangler init my-worker` |
+  | `wrangler dev` | Local development server | `wrangler dev` |
+  | `wrangler deploy` | Deploy to production | `wrangler deploy` |
+  | `wrangler tail` | Live logs from production | `wrangler tail` |
+  | `wrangler secret` | Manage secrets | `wrangler secret put API_KEY` |
+  | `wrangler kv` | KV namespace management | `wrangler kv:namespace create MY_KV` |
+  | `wrangler d1` | D1 database management | `wrangler d1 create my-db` |
+  | `wrangler r2` | R2 bucket management | `wrangler r2 bucket create my-bucket` |
+  | `wrangler pages` | Pages project management | `wrangler pages deploy ./dist` |
+  | `wrangler types` | Generate TypeScript types | `wrangler types` |
+
+#### Task 5.2.2: Worker Project Setup
+
+- [ ] **Task 5.2.2**: Create and configure Cloudflare Workers project structure
+
+  **Initialize Project:**
+
+  ```bash
+  # Create new Workers project
+  mkdir cloudflare-workers && cd cloudflare-workers
+
+  # Initialize with Wrangler (interactive)
+  wrangler init . --from-dash # Use existing worker from dashboard
+  # OR
+  wrangler init . # Start fresh
+
+  # Select options:
+  # - TypeScript: Yes
+  # - Git: Yes
+  # - Deploy: No (we'll configure first)
+  ```
+
+  **Recommended Project Structure:**
+
+  ```
+  cloudflare-workers/
+  ├── wrangler.toml               # Wrangler configuration
+  ├── package.json
+  ├── tsconfig.json
+  ├── .dev.vars                   # Local development secrets
+  ├── .gitignore
+  │
+  ├── src/
+  │   ├── index.ts                # Main entry point
+  │   │
+  │   ├── routes/                 # Route handlers
+  │   │   ├── api.ts              # API routes
+  │   │   ├── contact.ts          # Contact form handler
+  │   │   ├── health.ts           # Health check
+  │   │   └── proxy.ts            # Medusa API proxy
+  │   │
+  │   ├── middleware/             # Middleware functions
+  │   │   ├── cors.ts             # CORS handling
+  │   │   ├── rateLimit.ts        # Rate limiting
+  │   │   └── auth.ts             # Authentication
+  │   │
+  │   ├── services/               # External integrations
+  │   │   ├── supabase.ts         # Supabase client
+  │   │   └── email.ts            # Email sending
+  │   │
+  │   ├── lib/                    # Shared utilities
+  │   │   ├── response.ts         # Response helpers
+  │   │   └── validation.ts       # Input validation
+  │   │
+  │   └── types/                  # TypeScript definitions
+  │       └── env.d.ts            # Environment types
+  │
+  └── test/                       # Test files
+      └── handler.test.ts
+  ```
+
+  **wrangler.toml Configuration:**
+
+  ```toml
+  # wrangler.toml - Main configuration file
+  name = "danieltarazona-api"
+  main = "src/index.ts"
+  compatibility_date = "2024-01-01"
+  compatibility_flags = ["nodejs_compat"]
+
+  # Account Configuration
+  account_id = "your-account-id"  # Found in Cloudflare dashboard
+
+  # Worker Settings
+  workers_dev = true              # Enable workers.dev subdomain
+  minify = true                   # Minify production bundle
+  node_compat = true              # Enable Node.js compatibility
+
+  # Custom Routes (production)
+  routes = [
+    { pattern = "api.danieltarazona.com/*", zone_name = "danieltarazona.com" },
+    { pattern = "danieltarazona.com/api/*", zone_name = "danieltarazona.com" }
+  ]
+
+  # Environment Variables (non-secret)
+  [vars]
+  ENVIRONMENT = "production"
+  ALLOWED_ORIGINS = "https://danieltarazona.com,https://store.danieltarazona.com"
+  MEDUSA_BACKEND_URL = "https://api.danieltarazona.com/medusa"
+
+  # KV Namespace Bindings
+  [[kv_namespaces]]
+  binding = "RATE_LIMIT_KV"
+  id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  preview_id = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+
+  [[kv_namespaces]]
+  binding = "CACHE_KV"
+  id = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  preview_id = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+  # D1 Database Binding (optional)
+  [[d1_databases]]
+  binding = "DB"
+  database_name = "danieltarazona-db"
+  database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+  # R2 Bucket Binding (optional)
+  [[r2_buckets]]
+  binding = "ASSETS_BUCKET"
+  bucket_name = "danieltarazona-assets"
+
+  # Development Environment
+  [env.development]
+  name = "danieltarazona-api-dev"
+  vars = { ENVIRONMENT = "development" }
+
+  # Staging Environment
+  [env.staging]
+  name = "danieltarazona-api-staging"
+  routes = [
+    { pattern = "api-staging.danieltarazona.com/*", zone_name = "danieltarazona.com" }
+  ]
+  vars = { ENVIRONMENT = "staging" }
+  ```
+
+  **TypeScript Configuration (tsconfig.json):**
+
+  ```json
+  {
+    "compilerOptions": {
+      "target": "ES2022",
+      "module": "ESNext",
+      "moduleResolution": "bundler",
+      "lib": ["ES2022"],
+      "types": ["@cloudflare/workers-types"],
+      "strict": true,
+      "skipLibCheck": true,
+      "noEmit": true,
+      "isolatedModules": true,
+      "resolveJsonModule": true,
+      "allowSyntheticDefaultImports": true,
+      "esModuleInterop": true,
+      "forceConsistentCasingInFileNames": true
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "test"]
+  }
+  ```
+
+  **package.json:**
+
+  ```json
+  {
+    "name": "danieltarazona-workers",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+      "dev": "wrangler dev",
+      "deploy": "wrangler deploy",
+      "deploy:staging": "wrangler deploy --env staging",
+      "deploy:production": "wrangler deploy --env production",
+      "tail": "wrangler tail",
+      "types": "wrangler types",
+      "test": "vitest",
+      "test:coverage": "vitest --coverage",
+      "lint": "eslint src/",
+      "format": "prettier --write src/"
+    },
+    "devDependencies": {
+      "@cloudflare/workers-types": "^4.20240512.0",
+      "typescript": "^5.4.5",
+      "wrangler": "^3.57.0",
+      "vitest": "^1.6.0",
+      "@types/node": "^20.12.12",
+      "eslint": "^9.3.0",
+      "prettier": "^3.2.5"
+    },
+    "dependencies": {
+      "hono": "^4.3.7",
+      "zod": "^3.23.8"
+    }
+  }
+  ```
+
+#### Task 5.2.3: Main Worker Entry Point with Hono
+
+- [ ] **Task 5.2.3**: Create main Worker entry point with Hono router framework
+
+  **src/types/env.d.ts (Environment Bindings):**
+
+  ```typescript
+  // src/types/env.d.ts
+  export interface Env {
+    // Environment Variables
+    ENVIRONMENT: string;
+    ALLOWED_ORIGINS: string;
+    MEDUSA_BACKEND_URL: string;
+
+    // Secrets (set via wrangler secret put)
+    SUPABASE_URL: string;
+    SUPABASE_ANON_KEY: string;
+    RESEND_API_KEY: string;
+
+    // KV Namespaces
+    RATE_LIMIT_KV: KVNamespace;
+    CACHE_KV: KVNamespace;
+
+    // D1 Database (optional)
+    DB?: D1Database;
+
+    // R2 Bucket (optional)
+    ASSETS_BUCKET?: R2Bucket;
+  }
+
+  export type Variables = {
+    requestId: string;
+    clientIp: string;
+    startTime: number;
+  };
+  ```
+
+  **src/index.ts (Main Entry Point):**
+
+  ```typescript
+  // src/index.ts
+  import { Hono } from 'hono';
+  import { cors } from 'hono/cors';
+  import { logger } from 'hono/logger';
+  import { secureHeaders } from 'hono/secure-headers';
+  import { timing } from 'hono/timing';
+  import type { Env, Variables } from './types/env';
+  import { contactRoutes } from './routes/contact';
+  import { healthRoutes } from './routes/health';
+  import { proxyRoutes } from './routes/proxy';
+  import { apiRoutes } from './routes/api';
+  import { rateLimitMiddleware } from './middleware/rateLimit';
+
+  // Create Hono app with typed bindings
+  const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+  // Global Middleware
+  app.use('*', timing());
+  app.use('*', logger());
+  app.use('*', secureHeaders());
+
+  // CORS Configuration
+  app.use('*', cors({
+    origin: (origin, c) => {
+      const allowedOrigins = c.env.ALLOWED_ORIGINS.split(',');
+      if (allowedOrigins.includes(origin) || c.env.ENVIRONMENT === 'development') {
+        return origin;
+      }
+      return null;
+    },
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    credentials: true,
+    maxAge: 86400,
+  }));
+
+  // Request Context Middleware
+  app.use('*', async (c, next) => {
+    c.set('requestId', crypto.randomUUID());
+    c.set('clientIp', c.req.header('CF-Connecting-IP') || 'unknown');
+    c.set('startTime', Date.now());
+    await next();
+  });
+
+  // Rate Limiting (applies to API routes)
+  app.use('/api/*', rateLimitMiddleware);
+  app.use('/contact', rateLimitMiddleware);
+
+  // Mount Routes
+  app.route('/health', healthRoutes);
+  app.route('/api', apiRoutes);
+  app.route('/contact', contactRoutes);
+  app.route('/medusa', proxyRoutes);
+
+  // Root endpoint
+  app.get('/', (c) => {
+    return c.json({
+      name: 'Daniel Tarazona API',
+      version: '1.0.0',
+      environment: c.env.ENVIRONMENT,
+      documentation: 'https://danieltarazona.com/api/docs',
+    });
+  });
+
+  // 404 Handler
+  app.notFound((c) => {
+    return c.json(
+      {
+        error: 'Not Found',
+        message: `Route ${c.req.method} ${c.req.path} not found`,
+        requestId: c.get('requestId'),
+      },
+      404
+    );
+  });
+
+  // Error Handler
+  app.onError((err, c) => {
+    console.error(`[${c.get('requestId')}] Error:`, err);
+
+    const status = err instanceof HTTPException ? err.status : 500;
+    const message = c.env.ENVIRONMENT === 'production'
+      ? 'Internal Server Error'
+      : err.message;
+
+    return c.json(
+      {
+        error: 'Internal Server Error',
+        message,
+        requestId: c.get('requestId'),
+      },
+      status
+    );
+  });
+
+  export default app;
+  ```
+
+#### Task 5.2.4: Route Configuration and Handlers
+
+- [ ] **Task 5.2.4**: Create route handlers for API endpoints
+
+  **src/routes/health.ts:**
+
+  ```typescript
+  // src/routes/health.ts
+  import { Hono } from 'hono';
+  import type { Env, Variables } from '../types/env';
+
+  export const healthRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+  // Basic health check
+  healthRoutes.get('/', (c) => {
+    return c.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      environment: c.env.ENVIRONMENT,
+      requestId: c.get('requestId'),
+    });
+  });
+
+  // Readiness check (verifies dependencies)
+  healthRoutes.get('/ready', async (c) => {
+    const checks: Record<string, boolean> = {};
+
+    // Check KV availability
+    try {
+      await c.env.RATE_LIMIT_KV.get('health-check');
+      checks.kv = true;
+    } catch {
+      checks.kv = false;
+    }
+
+    // Check D1 availability (if configured)
+    if (c.env.DB) {
+      try {
+        await c.env.DB.prepare('SELECT 1').first();
+        checks.d1 = true;
+      } catch {
+        checks.d1 = false;
+      }
+    }
+
+    const allHealthy = Object.values(checks).every(Boolean);
+
+    return c.json(
+      {
+        ready: allHealthy,
+        checks,
+        timestamp: new Date().toISOString(),
+      },
+      allHealthy ? 200 : 503
+    );
+  });
+
+  // Liveness check
+  healthRoutes.get('/live', (c) => {
+    return c.json({ alive: true });
+  });
+  ```
+
+  **src/routes/contact.ts:**
+
+  ```typescript
+  // src/routes/contact.ts
+  import { Hono } from 'hono';
+  import { z } from 'zod';
+  import { zValidator } from '@hono/zod-validator';
+  import type { Env, Variables } from '../types/env';
+
+  export const contactRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+  // Contact form schema
+  const contactSchema = z.object({
+    name: z.string().min(2).max(100),
+    email: z.string().email(),
+    subject: z.string().min(5).max(200),
+    message: z.string().min(10).max(5000),
+    honeypot: z.string().max(0).optional(), // Spam protection
+  });
+
+  contactRoutes.post('/', zValidator('json', contactSchema), async (c) => {
+    const data = c.req.valid('json');
+
+    // Honeypot check (spam bots fill hidden fields)
+    if (data.honeypot) {
+      return c.json({ success: true, message: 'Thank you!' }); // Fake success for bots
+    }
+
+    try {
+      // Store in Supabase
+      const response = await fetch(`${c.env.SUPABASE_URL}/rest/v1/contact_submissions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': c.env.SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${c.env.SUPABASE_ANON_KEY}`,
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          name: data.name,
+          email: data.email,
+          subject: data.subject,
+          message: data.message,
+          source: 'contact_form',
+          ip_address: c.get('clientIp'),
+          user_agent: c.req.header('User-Agent'),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Supabase error: ${response.status}`);
+      }
+
+      // Send email notification via Resend
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${c.env.RESEND_API_KEY}`,
+        },
+        body: JSON.stringify({
+          from: 'Contact Form <noreply@danieltarazona.com>',
+          to: ['daniel@danieltarazona.com'],
+          subject: `New Contact: ${data.subject}`,
+          html: `
+            <h2>New Contact Form Submission</h2>
+            <p><strong>From:</strong> ${data.name} (${data.email})</p>
+            <p><strong>Subject:</strong> ${data.subject}</p>
+            <hr>
+            <p>${data.message.replace(/\n/g, '<br>')}</p>
+          `,
+        }),
+      });
+
+      return c.json({
+        success: true,
+        message: 'Thank you for your message! We\'ll get back to you soon.',
+        requestId: c.get('requestId'),
+      });
+    } catch (error) {
+      console.error(`[${c.get('requestId')}] Contact form error:`, error);
+      return c.json(
+        {
+          success: false,
+          message: 'Failed to send message. Please try again later.',
+          requestId: c.get('requestId'),
+        },
+        500
+      );
+    }
+  });
+  ```
+
+  **src/routes/proxy.ts (Medusa API Proxy):**
+
+  ```typescript
+  // src/routes/proxy.ts
+  import { Hono } from 'hono';
+  import type { Env, Variables } from '../types/env';
+
+  export const proxyRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+  // Proxy all requests to Medusa backend
+  proxyRoutes.all('/*', async (c) => {
+    const path = c.req.path.replace('/medusa', '');
+    const targetUrl = `${c.env.MEDUSA_BACKEND_URL}${path}`;
+
+    // Create headers for upstream request
+    const headers = new Headers(c.req.raw.headers);
+    headers.delete('host');
+    headers.set('X-Forwarded-For', c.get('clientIp'));
+    headers.set('X-Forwarded-Proto', 'https');
+    headers.set('X-Request-ID', c.get('requestId'));
+
+    try {
+      // Check cache for GET requests
+      if (c.req.method === 'GET') {
+        const cacheKey = `medusa:${path}:${c.req.url}`;
+        const cached = await c.env.CACHE_KV.get(cacheKey, 'text');
+        if (cached) {
+          return new Response(cached, {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Cache': 'HIT',
+            },
+          });
+        }
+      }
+
+      // Forward request to Medusa
+      const response = await fetch(targetUrl, {
+        method: c.req.method,
+        headers,
+        body: c.req.method !== 'GET' && c.req.method !== 'HEAD'
+          ? await c.req.text()
+          : undefined,
+      });
+
+      // Clone response for potential caching
+      const responseText = await response.text();
+
+      // Cache successful GET responses for 5 minutes
+      if (c.req.method === 'GET' && response.ok) {
+        const cacheKey = `medusa:${path}:${c.req.url}`;
+        await c.env.CACHE_KV.put(cacheKey, responseText, {
+          expirationTtl: 300,
+        });
+      }
+
+      return new Response(responseText, {
+        status: response.status,
+        headers: {
+          'Content-Type': response.headers.get('Content-Type') || 'application/json',
+          'X-Cache': 'MISS',
+          'X-Proxy-Request-ID': c.get('requestId'),
+        },
+      });
+    } catch (error) {
+      console.error(`[${c.get('requestId')}] Proxy error:`, error);
+      return c.json(
+        {
+          error: 'Proxy Error',
+          message: 'Failed to connect to backend service',
+          requestId: c.get('requestId'),
+        },
+        502
+      );
+    }
+  });
+  ```
+
+#### Task 5.2.5: Rate Limiting with KV Storage
+
+- [ ] **Task 5.2.5**: Implement rate limiting middleware using Cloudflare KV
+
+  **src/middleware/rateLimit.ts:**
+
+  ```typescript
+  // src/middleware/rateLimit.ts
+  import { MiddlewareHandler } from 'hono';
+  import type { Env, Variables } from '../types/env';
+
+  interface RateLimitConfig {
+    windowMs: number;      // Time window in milliseconds
+    maxRequests: number;   // Max requests per window
+    keyPrefix: string;     // KV key prefix
+  }
+
+  const defaultConfig: RateLimitConfig = {
+    windowMs: 60 * 1000,   // 1 minute
+    maxRequests: 30,       // 30 requests per minute
+    keyPrefix: 'ratelimit',
+  };
+
+  export const rateLimitMiddleware: MiddlewareHandler<{
+    Bindings: Env;
+    Variables: Variables;
+  }> = async (c, next) => {
+    const config = defaultConfig;
+    const clientIp = c.get('clientIp');
+    const path = c.req.path;
+
+    // Create unique key for this client + path combo
+    const key = `${config.keyPrefix}:${clientIp}:${path}`;
+    const now = Date.now();
+    const windowStart = now - config.windowMs;
+
+    try {
+      // Get current request count
+      const data = await c.env.RATE_LIMIT_KV.get(key, 'json') as {
+        count: number;
+        resetAt: number;
+      } | null;
+
+      if (!data || data.resetAt < now) {
+        // Start new window
+        await c.env.RATE_LIMIT_KV.put(key, JSON.stringify({
+          count: 1,
+          resetAt: now + config.windowMs,
+        }), {
+          expirationTtl: Math.ceil(config.windowMs / 1000),
+        });
+      } else if (data.count >= config.maxRequests) {
+        // Rate limit exceeded
+        const retryAfter = Math.ceil((data.resetAt - now) / 1000);
+        return c.json(
+          {
+            error: 'Too Many Requests',
+            message: 'Rate limit exceeded. Please try again later.',
+            retryAfter,
+            requestId: c.get('requestId'),
+          },
+          429,
+          {
+            'Retry-After': retryAfter.toString(),
+            'X-RateLimit-Limit': config.maxRequests.toString(),
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': data.resetAt.toString(),
+          }
+        );
+      } else {
+        // Increment counter
+        await c.env.RATE_LIMIT_KV.put(key, JSON.stringify({
+          count: data.count + 1,
+          resetAt: data.resetAt,
+        }), {
+          expirationTtl: Math.ceil((data.resetAt - now) / 1000),
+        });
+      }
+
+      // Add rate limit headers
+      const remaining = data
+        ? Math.max(0, config.maxRequests - data.count - 1)
+        : config.maxRequests - 1;
+
+      c.header('X-RateLimit-Limit', config.maxRequests.toString());
+      c.header('X-RateLimit-Remaining', remaining.toString());
+      c.header('X-RateLimit-Reset', (data?.resetAt || now + config.windowMs).toString());
+
+      await next();
+    } catch (error) {
+      console.error(`[${c.get('requestId')}] Rate limit error:`, error);
+      // On error, allow request through but log
+      await next();
+    }
+  };
+
+  // Stricter rate limit for sensitive endpoints
+  export const strictRateLimitMiddleware: MiddlewareHandler<{
+    Bindings: Env;
+    Variables: Variables;
+  }> = async (c, next) => {
+    const strictConfig: RateLimitConfig = {
+      windowMs: 60 * 60 * 1000,  // 1 hour
+      maxRequests: 10,            // 10 per hour
+      keyPrefix: 'ratelimit:strict',
+    };
+
+    // Apply strict rate limiting (same logic, different config)
+    // ... implementation similar to above
+    await next();
+  };
+  ```
+
+#### Task 5.2.6: KV Namespace Creation and Configuration
+
+- [ ] **Task 5.2.6**: Create and configure KV namespaces for Workers
+
+  ```bash
+  # Create KV namespaces
+
+  # Rate limiting storage
+  wrangler kv:namespace create "RATE_LIMIT_KV"
+  # Output: 🌀 Created namespace with id = "xxxxx"
+
+  # Create preview namespace for development
+  wrangler kv:namespace create "RATE_LIMIT_KV" --preview
+  # Output: 🌀 Created namespace with id = "yyyyy"
+
+  # Cache storage
+  wrangler kv:namespace create "CACHE_KV"
+  wrangler kv:namespace create "CACHE_KV" --preview
+
+  # List all namespaces
+  wrangler kv:namespace list
+
+  # Update wrangler.toml with the namespace IDs
+  # [[kv_namespaces]]
+  # binding = "RATE_LIMIT_KV"
+  # id = "xxxxx"
+  # preview_id = "yyyyy"
+
+  # KV Operations (for debugging/maintenance)
+  wrangler kv:key list --namespace-id=xxxxx
+  wrangler kv:key get --namespace-id=xxxxx "some-key"
+  wrangler kv:key put --namespace-id=xxxxx "some-key" "some-value"
+  wrangler kv:key delete --namespace-id=xxxxx "some-key"
+
+  # Bulk operations
+  wrangler kv:bulk put --namespace-id=xxxxx ./data.json
+  wrangler kv:bulk delete --namespace-id=xxxxx ./keys.json
+  ```
+
+#### Task 5.2.7: Secrets Management
+
+- [ ] **Task 5.2.7**: Configure secrets for Workers
+
+  ```bash
+  # Add secrets (values will be prompted securely)
+  wrangler secret put SUPABASE_URL
+  # Enter value: https://xxxxx.supabase.co
+
+  wrangler secret put SUPABASE_ANON_KEY
+  # Enter value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+  wrangler secret put RESEND_API_KEY
+  # Enter value: re_xxxxx
+
+  # List secrets (values are hidden)
+  wrangler secret list
+  # Output:
+  # [
+  #   { "name": "SUPABASE_URL", "type": "secret_text" },
+  #   { "name": "SUPABASE_ANON_KEY", "type": "secret_text" },
+  #   { "name": "RESEND_API_KEY", "type": "secret_text" }
+  # ]
+
+  # Delete a secret
+  wrangler secret delete SECRET_NAME
+
+  # For staging environment
+  wrangler secret put SUPABASE_URL --env staging
+  ```
+
+  **Local Development Secrets (.dev.vars):**
+
+  ```bash
+  # .dev.vars (gitignored, local development only)
+  SUPABASE_URL=https://xxxxx.supabase.co
+  SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  RESEND_API_KEY=re_xxxxx
+  ```
+
+#### Task 5.2.8: Local Development Server
+
+- [ ] **Task 5.2.8**: Configure local development environment
+
+  ```bash
+  # Start local development server
+  wrangler dev
+
+  # Output:
+  # ⛅️ wrangler 3.x.x
+  # ──────────────────────────────────────────────────
+  # ⎔ Starting local server...
+  # [mf:inf] Ready on http://localhost:8787
+
+  # Development with specific environment
+  wrangler dev --env staging
+
+  # Development with live backend (uses real KV, etc.)
+  wrangler dev --remote
+
+  # Development on specific port
+  wrangler dev --port 3000
+
+  # Development with inspector
+  wrangler dev --inspect
+
+  # Test endpoints
+  curl http://localhost:8787/health
+  curl http://localhost:8787/api/v1/status
+  curl -X POST http://localhost:8787/contact \
+    -H "Content-Type: application/json" \
+    -d '{"name":"Test","email":"test@example.com","subject":"Test","message":"Hello World"}'
+  ```
+
+#### Task 5.2.9: Deployment and Routing
+
+- [ ] **Task 5.2.9**: Deploy Workers and configure routes
+
+  ```bash
+  # Deploy to production
+  wrangler deploy
+
+  # Output:
+  # ⛅️ wrangler 3.x.x
+  # ──────────────────────────────────────────────────
+  # Your worker has access to the following bindings:
+  # - KV Namespaces:
+  #   - RATE_LIMIT_KV
+  #   - CACHE_KV
+  # - Vars:
+  #   - ENVIRONMENT: "production"
+  # Uploaded danieltarazona-api (1.23 sec)
+  # Published danieltarazona-api (3.45 sec)
+  #   https://danieltarazona-api.yoursubdomain.workers.dev
+  #   api.danieltarazona.com/*
+  #   danieltarazona.com/api/*
+
+  # Deploy to staging
+  wrangler deploy --env staging
+
+  # Deploy specific version (dry run)
+  wrangler deploy --dry-run
+
+  # View deployment versions
+  wrangler deployments list
+
+  # Rollback to previous version
+  wrangler rollback
+  ```
+
+  **DNS Configuration for Custom Routes:**
+
+  ```bash
+  # Add Worker routes via Cloudflare API (or dashboard)
+  # These map requests to your Worker
+
+  # Route: api.danieltarazona.com/* → Worker
+  curl -X POST "https://api.cloudflare.com/client/v4/zones/{zone_id}/workers/routes" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data '{
+      "pattern": "api.danieltarazona.com/*",
+      "script": "danieltarazona-api"
+    }'
+
+  # Route: danieltarazona.com/api/* → Worker
+  curl -X POST "https://api.cloudflare.com/client/v4/zones/{zone_id}/workers/routes" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data '{
+      "pattern": "danieltarazona.com/api/*",
+      "script": "danieltarazona-api"
+    }'
+  ```
+
+#### Task 5.2.10: Monitoring and Logging
+
+- [ ] **Task 5.2.10**: Set up monitoring and logging for Workers
+
+  ```bash
+  # Real-time logs (tail)
+  wrangler tail
+
+  # Filter by status
+  wrangler tail --status error
+
+  # Filter by IP
+  wrangler tail --ip 192.168.1.1
+
+  # Filter by search term
+  wrangler tail --search "contact"
+
+  # JSON output for processing
+  wrangler tail --format json
+
+  # Tail with sampling (for high-traffic workers)
+  wrangler tail --sampling-rate 0.1  # 10% of requests
+  ```
+
+  **Analytics (via Cloudflare Dashboard):**
+
+  | Metric | Description | Location |
+  |--------|-------------|----------|
+  | Requests | Total requests per period | Workers → Overview |
+  | CPU Time | Execution time metrics | Workers → Analytics |
+  | Errors | Error rate and types | Workers → Analytics |
+  | Subrequests | Outbound fetch() calls | Workers → Analytics |
+  | KV Operations | Read/write operations | KV → Analytics |
+
+  **Custom Logging to External Service:**
+
+  ```typescript
+  // src/lib/logger.ts
+  export async function logToExternal(
+    env: Env,
+    level: 'info' | 'warn' | 'error',
+    message: string,
+    meta?: Record<string, unknown>
+  ) {
+    // Example: Log to Logflare, Datadog, or custom endpoint
+    await fetch('https://your-logging-service.com/logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        level,
+        message,
+        timestamp: new Date().toISOString(),
+        environment: env.ENVIRONMENT,
+        ...meta,
+      }),
+    });
+  }
+  ```
+
+#### Task 5.2.11: Integration with Astro Sites
+
+- [ ] **Task 5.2.11**: Integrate Workers API with main Astro sites
+
+  **Astro Site Configuration:**
+
+  ```typescript
+  // src/lib/api.ts (in Astro project)
+  const API_BASE = import.meta.env.PUBLIC_API_URL || 'https://api.danieltarazona.com';
+
+  export async function submitContactForm(data: ContactFormData) {
+    const response = await fetch(`${API_BASE}/contact`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to submit form');
+    }
+
+    return response.json();
+  }
+
+  export async function fetchProducts() {
+    const response = await fetch(`${API_BASE}/medusa/store/products`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch products');
+    }
+    return response.json();
+  }
+  ```
+
+  **Environment Variables for Astro:**
+
+  ```bash
+  # .env (Astro project)
+  PUBLIC_API_URL=https://api.danieltarazona.com
+
+  # Development
+  PUBLIC_API_URL=http://localhost:8787
+  ```
+
+### Phase 4 Task Summary: Cloudflare Workers
+
+| Task ID | Task | Status |
+|---------|------|--------|
+| 5.2.1 | Install and configure Wrangler CLI | [ ] |
+| 5.2.2 | Create Workers project structure | [ ] |
+| 5.2.3 | Create main entry point with Hono router | [ ] |
+| 5.2.4 | Create route handlers for API endpoints | [ ] |
+| 5.2.5 | Implement rate limiting with KV storage | [ ] |
+| 5.2.6 | Create and configure KV namespaces | [ ] |
+| 5.2.7 | Configure secrets for Workers | [ ] |
+| 5.2.8 | Set up local development environment | [ ] |
+| 5.2.9 | Deploy Workers and configure routes | [ ] |
+| 5.2.10 | Set up monitoring and logging | [ ] |
+| 5.2.11 | Integrate Workers API with Astro sites | [ ] |
+
+### Cloudflare Workers Resources & Documentation
+
+| Resource | URL |
+|----------|-----|
+| Workers Documentation | https://developers.cloudflare.com/workers/ |
+| Wrangler CLI | https://developers.cloudflare.com/workers/wrangler/ |
+| Workers Examples | https://developers.cloudflare.com/workers/examples/ |
+| Hono Framework | https://hono.dev |
+| Workers KV | https://developers.cloudflare.com/kv/ |
+| D1 Database | https://developers.cloudflare.com/d1/ |
+| R2 Storage | https://developers.cloudflare.com/r2/ |
+| Workers AI | https://developers.cloudflare.com/workers-ai/ |
+
+---
+
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*
