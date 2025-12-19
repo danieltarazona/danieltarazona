@@ -15718,4 +15718,851 @@ This section documents comprehensive strategies for PostgreSQL backup automation
 
 ---
 
+## Appendix C: Multi-Site Template Structure for Reusability
+
+This section documents how the `danieltarazona.com` setup serves as a **reusable template** for creating additional branded websites within the Adam Tech ecosystem, specifically **Adam Robotics**, **Adam Automotive**, and **Adam Defense**. The architecture is designed for consistent theming, shared infrastructure, and efficient multi-site management.
+
+### Template Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                        MULTI-SITE TEMPLATE ARCHITECTURE                                  │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+
+                            ┌─────────────────────────────┐
+                            │     SHARED FOUNDATION       │
+                            │  (Template Components)      │
+                            └──────────────┬──────────────┘
+                                           │
+          ┌────────────────────────────────┼────────────────────────────────┐
+          │                                │                                │
+          ▼                                ▼                                ▼
+┌─────────────────────┐      ┌─────────────────────┐      ┌─────────────────────┐
+│   DANIEL TARAZONA   │      │    ADAM ROBOTICS    │      │   ADAM AUTOMOTIVE   │
+│  (Reference Site)   │      │   (Derived Site)    │      │   (Derived Site)    │
+├─────────────────────┤      ├─────────────────────┤      ├─────────────────────┤
+│ danieltarazona.com  │      │ adamrobotics.com    │      │ adamautomotive.com  │
+│ store.daniel...     │      │ store.adam...       │      │ store.adam...       │
+└─────────────────────┘      └─────────────────────┘      └─────────────────────┘
+          │                                │                                │
+          └────────────────────────────────┼────────────────────────────────┘
+                                           │
+                                           ▼
+                            ┌─────────────────────────────┐
+                            │      ADAM DEFENSE           │
+                            │    (Derived Site)           │
+                            ├─────────────────────────────┤
+                            │ adamdefense.com             │
+                            │ store.adamdefense.com       │
+                            └─────────────────────────────┘
+```
+
+### Brand Overview Table
+
+| Brand | Domain | Purpose | Target Market | Theme Colors |
+|-------|--------|---------|---------------|--------------|
+| **Daniel Tarazona** | danieltarazona.com | Personal portfolio & store | Professionals, creatives | Blue, White, Gray |
+| **Adam Robotics** | adamrobotics.com | Robotics products & consulting | Engineers, makers, hobbyists | Cyan, Black, Silver |
+| **Adam Automotive** | adamautomotive.com | Automotive parts & accessories | Car enthusiasts, mechanics | Red, Black, Chrome |
+| **Adam Defense** | adamdefense.com | Defense technology & equipment | Government, contractors | Navy, Gold, Dark Gray |
+
+### Shared vs Unique Components
+
+The template architecture divides components into three categories:
+
+#### 1. Shared Infrastructure (100% Reusable)
+
+These components are identical across all sites and require no modification:
+
+| Component | Description | Configuration |
+|-----------|-------------|---------------|
+| **Cloudflare CDN** | Edge caching, DDoS protection | Same account, different zones |
+| **Cloudflare Tunnel** | Secure backend connectivity | One tunnel per VPS, multiple routes |
+| **Coolify Platform** | Deployment orchestration | Single instance, multiple projects |
+| **VPS Infrastructure** | Server resources | Shared or dedicated per scale |
+| **CI/CD Pipelines** | GitHub Actions workflows | Template workflows per repo |
+| **Monitoring Stack** | Health checks, alerting | Shared monitoring, per-site metrics |
+| **Backup Infrastructure** | Cloudflare R2, scripts | Shared bucket, site-specific prefixes |
+
+```yaml
+# Example: Shared Cloudflare Tunnel Config for Multiple Sites
+# ~/.cloudflared/config.yml
+
+tunnel: multi-site-tunnel
+credentials-file: /home/user/.cloudflared/multi-site-tunnel.json
+
+ingress:
+  # Daniel Tarazona
+  - hostname: store.danieltarazona.com
+    service: http://localhost:9000
+  - hostname: admin.danieltarazona.com
+    service: http://localhost:9000
+
+  # Adam Robotics
+  - hostname: store.adamrobotics.com
+    service: http://localhost:9001
+  - hostname: admin.adamrobotics.com
+    service: http://localhost:9001
+
+  # Adam Automotive
+  - hostname: store.adamautomotive.com
+    service: http://localhost:9002
+  - hostname: admin.adamautomotive.com
+    service: http://localhost:9002
+
+  # Adam Defense
+  - hostname: store.adamdefense.com
+    service: http://localhost:9003
+  - hostname: admin.adamdefense.com
+    service: http://localhost:9003
+
+  # Catch-all
+  - service: http_status:404
+```
+
+#### 2. Shared Template Code (90% Reusable, 10% Customization)
+
+These components share the same codebase with brand-specific configuration:
+
+| Component | Shared | Customized |
+|-----------|--------|------------|
+| **Astro Base Layout** | HTML structure, SEO setup, analytics | Meta tags, favicon, OG images |
+| **Component Library** | Button, Card, Modal, Form components | Color variables, typography |
+| **CSS Framework** | Tailwind config, utility classes | Theme colors, brand fonts |
+| **API Client** | Medusa SDK setup, error handling | Endpoint URLs, API keys |
+| **Contact Form** | Validation, submission logic | Recipient email, success messages |
+| **Checkout Flow** | Cart, shipping, payment steps | Currency, tax rules, branding |
+
+**Theme Token System:**
+
+```typescript
+// packages/shared-theme/tokens.ts
+// Shared theme token structure used by all sites
+
+export interface BrandTokens {
+  name: string;
+  domain: string;
+  colors: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    background: string;
+    foreground: string;
+    muted: string;
+    error: string;
+    success: string;
+  };
+  fonts: {
+    heading: string;
+    body: string;
+    mono: string;
+  };
+  logo: {
+    light: string;
+    dark: string;
+    icon: string;
+  };
+  social: {
+    twitter?: string;
+    github?: string;
+    linkedin?: string;
+    instagram?: string;
+  };
+  contact: {
+    email: string;
+    phone?: string;
+    address?: string;
+  };
+}
+
+// Brand-specific implementations
+export const danielTarazonaTheme: BrandTokens = {
+  name: "Daniel Tarazona",
+  domain: "danieltarazona.com",
+  colors: {
+    primary: "#2563eb",      // Blue 600
+    secondary: "#1e40af",    // Blue 800
+    accent: "#3b82f6",       // Blue 500
+    background: "#ffffff",
+    foreground: "#0f172a",   // Slate 900
+    muted: "#64748b",        // Slate 500
+    error: "#dc2626",
+    success: "#16a34a",
+  },
+  fonts: {
+    heading: "Inter, system-ui, sans-serif",
+    body: "Inter, system-ui, sans-serif",
+    mono: "JetBrains Mono, monospace",
+  },
+  logo: {
+    light: "/images/logo-light.svg",
+    dark: "/images/logo-dark.svg",
+    icon: "/images/favicon.svg",
+  },
+  social: {
+    twitter: "https://twitter.com/danieltarazona",
+    github: "https://github.com/danieltarazona",
+    linkedin: "https://linkedin.com/in/danieltarazona",
+  },
+  contact: {
+    email: "contact@danieltarazona.com",
+  },
+};
+
+export const adamRoboticsTheme: BrandTokens = {
+  name: "Adam Robotics",
+  domain: "adamrobotics.com",
+  colors: {
+    primary: "#06b6d4",      // Cyan 500
+    secondary: "#0891b2",    // Cyan 600
+    accent: "#22d3ee",       // Cyan 400
+    background: "#0f172a",   // Slate 900 (dark mode default)
+    foreground: "#f1f5f9",   // Slate 100
+    muted: "#94a3b8",        // Slate 400
+    error: "#f87171",
+    success: "#4ade80",
+  },
+  fonts: {
+    heading: "Orbitron, system-ui, sans-serif",
+    body: "Roboto, system-ui, sans-serif",
+    mono: "Fira Code, monospace",
+  },
+  logo: {
+    light: "/images/adam-robotics-light.svg",
+    dark: "/images/adam-robotics-dark.svg",
+    icon: "/images/adam-robotics-icon.svg",
+  },
+  social: {
+    twitter: "https://twitter.com/adamrobotics",
+    github: "https://github.com/adam-robotics",
+  },
+  contact: {
+    email: "hello@adamrobotics.com",
+  },
+};
+
+export const adamAutomotiveTheme: BrandTokens = {
+  name: "Adam Automotive",
+  domain: "adamautomotive.com",
+  colors: {
+    primary: "#dc2626",      // Red 600
+    secondary: "#b91c1c",    // Red 700
+    accent: "#ef4444",       // Red 500
+    background: "#18181b",   // Zinc 900
+    foreground: "#fafafa",   // Zinc 50
+    muted: "#a1a1aa",        // Zinc 400
+    error: "#f97316",        // Orange 500
+    success: "#22c55e",
+  },
+  fonts: {
+    heading: "Racing Sans One, system-ui, sans-serif",
+    body: "Nunito Sans, system-ui, sans-serif",
+    mono: "Source Code Pro, monospace",
+  },
+  logo: {
+    light: "/images/adam-automotive-light.svg",
+    dark: "/images/adam-automotive-dark.svg",
+    icon: "/images/adam-automotive-icon.svg",
+  },
+  social: {
+    instagram: "https://instagram.com/adamautomotive",
+  },
+  contact: {
+    email: "sales@adamautomotive.com",
+    phone: "+1-555-AUTO-123",
+  },
+};
+
+export const adamDefenseTheme: BrandTokens = {
+  name: "Adam Defense",
+  domain: "adamdefense.com",
+  colors: {
+    primary: "#1e3a5f",      // Navy custom
+    secondary: "#0c2340",    // Darker navy
+    accent: "#d4af37",       // Gold
+    background: "#111827",   // Gray 900
+    foreground: "#f9fafb",   // Gray 50
+    muted: "#9ca3af",        // Gray 400
+    error: "#ef4444",
+    success: "#10b981",
+  },
+  fonts: {
+    heading: "Bebas Neue, system-ui, sans-serif",
+    body: "Source Sans Pro, system-ui, sans-serif",
+    mono: "Courier Prime, monospace",
+  },
+  logo: {
+    light: "/images/adam-defense-light.svg",
+    dark: "/images/adam-defense-dark.svg",
+    icon: "/images/adam-defense-icon.svg",
+  },
+  social: {
+    linkedin: "https://linkedin.com/company/adam-defense",
+  },
+  contact: {
+    email: "inquiries@adamdefense.com",
+  },
+};
+```
+
+**Tailwind Theme Configuration:**
+
+```javascript
+// tailwind.config.js - Template for all sites
+// Import the appropriate theme tokens based on BRAND environment variable
+
+import { tokens } from './brand-config';
+
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./src/**/*.{astro,html,js,jsx,md,mdx,svelte,ts,tsx,vue}'],
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          DEFAULT: tokens.colors.primary,
+          foreground: tokens.colors.background,
+        },
+        secondary: {
+          DEFAULT: tokens.colors.secondary,
+          foreground: tokens.colors.background,
+        },
+        accent: {
+          DEFAULT: tokens.colors.accent,
+          foreground: tokens.colors.foreground,
+        },
+        background: tokens.colors.background,
+        foreground: tokens.colors.foreground,
+        muted: {
+          DEFAULT: tokens.colors.muted,
+          foreground: tokens.colors.muted,
+        },
+        destructive: {
+          DEFAULT: tokens.colors.error,
+        },
+        success: {
+          DEFAULT: tokens.colors.success,
+        },
+      },
+      fontFamily: {
+        heading: tokens.fonts.heading.split(','),
+        body: tokens.fonts.body.split(','),
+        mono: tokens.fonts.mono.split(','),
+      },
+    },
+  },
+  plugins: [],
+};
+```
+
+#### 3. Unique Site Content (0% Reusable)
+
+These elements are completely unique to each brand:
+
+| Element | Description | Where Stored |
+|---------|-------------|--------------|
+| **Product Catalog** | Items for sale | Medusa database |
+| **Product Images** | Photos, 3D renders | Cloudflare R2 |
+| **Blog Content** | Articles, news | Markdown/MDX files |
+| **About Page Content** | Company story, team | Astro pages |
+| **Legal Pages** | Privacy, Terms | Astro pages |
+| **Gallery Images** | Portfolio photos | Cloudflare Images |
+| **Customer Data** | Orders, accounts | Medusa database |
+| **Analytics Data** | Visitor metrics | Supabase or analytics service |
+
+### Repository Structure Options
+
+#### Option A: Monorepo (Recommended for Small Teams)
+
+Single repository with all sites managed together:
+
+```
+adam-tech-sites/
+├── .github/
+│   └── workflows/
+│       ├── deploy-daniel.yml
+│       ├── deploy-robotics.yml
+│       ├── deploy-automotive.yml
+│       └── deploy-defense.yml
+├── packages/
+│   ├── shared-ui/                 # Shared component library
+│   │   ├── src/
+│   │   │   ├── components/
+│   │   │   │   ├── Button.tsx
+│   │   │   │   ├── Card.tsx
+│   │   │   │   ├── Modal.tsx
+│   │   │   │   └── ...
+│   │   │   └── index.ts
+│   │   └── package.json
+│   ├── shared-theme/              # Theme tokens and utilities
+│   │   ├── src/
+│   │   │   ├── tokens.ts
+│   │   │   └── utils.ts
+│   │   └── package.json
+│   ├── shared-config/             # Shared configs (ESLint, Prettier, etc.)
+│   │   ├── eslint.config.js
+│   │   ├── prettier.config.js
+│   │   └── tsconfig.base.json
+│   └── medusa-client/             # Shared Medusa SDK wrapper
+│       ├── src/
+│       │   ├── client.ts
+│       │   ├── products.ts
+│       │   ├── cart.ts
+│       │   └── checkout.ts
+│       └── package.json
+├── sites/
+│   ├── danieltarazona.com/        # Reference implementation
+│   │   ├── astro.config.mjs
+│   │   ├── tailwind.config.js
+│   │   ├── brand-config.ts        # Imports danielTarazonaTheme
+│   │   ├── src/
+│   │   │   ├── pages/
+│   │   │   ├── layouts/
+│   │   │   └── content/
+│   │   └── package.json
+│   ├── adamrobotics.com/
+│   │   ├── astro.config.mjs
+│   │   ├── tailwind.config.js
+│   │   ├── brand-config.ts        # Imports adamRoboticsTheme
+│   │   ├── src/
+│   │   └── package.json
+│   ├── adamautomotive.com/
+│   │   ├── astro.config.mjs
+│   │   ├── tailwind.config.js
+│   │   ├── brand-config.ts        # Imports adamAutomotiveTheme
+│   │   ├── src/
+│   │   └── package.json
+│   └── adamdefense.com/
+│       ├── astro.config.mjs
+│       ├── tailwind.config.js
+│       ├── brand-config.ts        # Imports adamDefenseTheme
+│       ├── src/
+│       └── package.json
+├── infrastructure/
+│   ├── coolify/
+│   │   └── compose.yml            # Multi-site Medusa setup
+│   ├── cloudflare/
+│   │   └── tunnel-config.yml
+│   └── scripts/
+│       ├── deploy-all.sh
+│       └── backup-all.sh
+├── pnpm-workspace.yaml
+├── turbo.json                     # Turborepo config for builds
+└── package.json
+```
+
+**Monorepo Benefits:**
+- Single source of truth for shared code
+- Atomic commits across sites
+- Simplified dependency management
+- Easy to keep sites in sync
+
+**Monorepo Challenges:**
+- Larger repository size
+- Requires coordination for deployments
+- All sites share same CI/CD constraints
+
+#### Option B: Multi-Repo with Shared Packages
+
+Separate repositories for each site with shared packages published to npm:
+
+```
+GitHub Organization: adam-tech
+
+Repositories:
+├── adam-tech/shared-ui            # @adam-tech/ui
+├── adam-tech/shared-theme         # @adam-tech/theme
+├── adam-tech/shared-config        # @adam-tech/config
+├── adam-tech/medusa-client        # @adam-tech/medusa-client
+├── adam-tech/site-template        # Template for new sites
+├── adam-tech/danieltarazona.com   # Uses @adam-tech/* packages
+├── adam-tech/adamrobotics.com     # Uses @adam-tech/* packages
+├── adam-tech/adamautomotive.com   # Uses @adam-tech/* packages
+└── adam-tech/adamdefense.com      # Uses @adam-tech/* packages
+```
+
+**Multi-Repo Benefits:**
+- Independent deployment cycles
+- Cleaner repository boundaries
+- Teams can work independently
+- Easier access control per site
+
+**Multi-Repo Challenges:**
+- More complex dependency management
+- Risk of version drift between sites
+- Requires package publishing workflow
+
+### Creating a New Site from Template
+
+#### Step-by-Step Process
+
+**Step 1: Clone Template**
+
+```bash
+# Using monorepo approach
+cd adam-tech-sites/sites
+cp -r danieltarazona.com newbrand.com
+
+# Or using multi-repo approach
+gh repo create adam-tech/newbrand.com --template adam-tech/site-template
+```
+
+**Step 2: Configure Brand Tokens**
+
+```typescript
+// sites/newbrand.com/brand-config.ts
+import type { BrandTokens } from '@adam-tech/theme';
+
+export const tokens: BrandTokens = {
+  name: "New Brand",
+  domain: "newbrand.com",
+  colors: {
+    primary: "#8b5cf6",      // Your primary color
+    secondary: "#7c3aed",
+    accent: "#a78bfa",
+    background: "#ffffff",
+    foreground: "#1f2937",
+    muted: "#6b7280",
+    error: "#ef4444",
+    success: "#22c55e",
+  },
+  fonts: {
+    heading: "Your Heading Font, system-ui, sans-serif",
+    body: "Your Body Font, system-ui, sans-serif",
+    mono: "Your Mono Font, monospace",
+  },
+  logo: {
+    light: "/images/newbrand-light.svg",
+    dark: "/images/newbrand-dark.svg",
+    icon: "/images/newbrand-icon.svg",
+  },
+  social: {
+    // Add your social links
+  },
+  contact: {
+    email: "hello@newbrand.com",
+  },
+};
+```
+
+**Step 3: Update Environment Variables**
+
+```bash
+# sites/newbrand.com/.env
+SITE_URL=https://newbrand.com
+SITE_NAME="New Brand"
+MEDUSA_BACKEND_URL=https://api.newbrand.com
+
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+
+CLOUDFLARE_ACCOUNT_ID=your-account-id
+```
+
+**Step 4: Configure DNS (Cloudflare)**
+
+```bash
+# Add DNS records for new domain
+curl -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "type": "CNAME",
+    "name": "newbrand.com",
+    "content": "pages.dev",
+    "proxied": true
+  }'
+
+# Add store subdomain tunnel route
+cloudflared tunnel route dns multi-site-tunnel store.newbrand.com
+```
+
+**Step 5: Deploy Medusa Instance (if using Medusa per-site)**
+
+```bash
+# In Coolify dashboard or via API
+# Create new application: newbrand-medusa
+# Set port: 9004 (next available)
+# Configure environment variables
+
+# Update Cloudflare Tunnel config
+echo "  - hostname: store.newbrand.com
+    service: http://localhost:9004
+  - hostname: admin.newbrand.com
+    service: http://localhost:9004" >> ~/.cloudflared/config.yml
+
+# Restart tunnel
+sudo systemctl restart cloudflared
+```
+
+**Step 6: Deploy Frontend**
+
+```bash
+# Deploy to Cloudflare Pages
+cd sites/newbrand.com
+pnpm build
+wrangler pages deploy dist --project-name=newbrand-site
+```
+
+### Deployment Strategy Comparison
+
+#### Strategy 1: Shared Medusa (Vendure-style Channels)
+
+If using **Vendure** or a single Medusa with custom multi-tenant module:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     SINGLE VPS                                   │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │            VENDURE / MEDUSA (Multi-Channel)             │    │
+│  │  Port: 9000                                             │    │
+│  │                                                         │    │
+│  │  Channels:                                              │    │
+│  │  ├── default (danieltarazona.com)                       │    │
+│  │  ├── robotics (adamrobotics.com)                        │    │
+│  │  ├── automotive (adamautomotive.com)                    │    │
+│  │  └── defense (adamdefense.com)                          │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                           │                                      │
+│                           ▼                                      │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │              SHARED POSTGRESQL DATABASE                  │    │
+│  │  Port: 5432                                             │    │
+│  │  • products (with channel_id)                           │    │
+│  │  • orders (with channel_id)                             │    │
+│  │  • customers (shared or per-channel)                    │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+
+Cost: ~$15-30/month (single VPS)
+Complexity: Medium
+Best for: Related brands, shared products
+```
+
+#### Strategy 2: Separate Medusa Instances (Current Approach)
+
+Each brand has its own Medusa instance:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     SINGLE VPS (or Multiple)                     │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐│
+│  │   Medusa 1  │ │   Medusa 2  │ │   Medusa 3  │ │   Medusa 4  ││
+│  │  Port 9000  │ │  Port 9001  │ │  Port 9002  │ │  Port 9003  ││
+│  │  daniel...  │ │  robotics   │ │  automotive │ │  defense    ││
+│  └──────┬──────┘ └──────┬──────┘ └──────┬──────┘ └──────┬──────┘│
+│         │               │               │               │       │
+│         ▼               ▼               ▼               ▼       │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐│
+│  │ PostgreSQL 1│ │ PostgreSQL 2│ │ PostgreSQL 3│ │ PostgreSQL 4││
+│  │  Port 5432  │ │  Port 5433  │ │  Port 5434  │ │  Port 5435  ││
+│  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘│
+└─────────────────────────────────────────────────────────────────┘
+
+Cost: ~$30-60/month (larger VPS or multiple)
+Complexity: Low (per instance)
+Best for: Independent brands, separate teams
+```
+
+#### Strategy 3: Hybrid Approach (Recommended)
+
+Combination based on scale:
+
+```
+Phase 1 (Now):          danieltarazona.com only
+                        Single Medusa, small VPS ($5-10/mo)
+
+Phase 2 (Expansion):    Add Adam brands
+                        Evaluate: Vendure migration vs Multiple Medusa
+                        Decision based on product overlap and team structure
+
+Phase 3 (Scale):        Per-brand optimization
+                        Dedicated resources for high-traffic brands
+                        Shared infrastructure for smaller brands
+```
+
+### Infrastructure Cost Comparison by Scale
+
+| Sites | Strategy | VPS | Database | CDN | Total/Month |
+|-------|----------|-----|----------|-----|-------------|
+| 1 | Single Medusa | $5 | Free (Supabase) | Free | **$5** |
+| 2 | Dual Medusa | $15 | Free | Free | **$15** |
+| 4 | Four Medusa | $30 | $15 (pooled) | Free | **$45** |
+| 4 | Single Vendure | $15 | $15 | Free | **$30** |
+| 4+ | Enterprise | $60+ | $50+ | $20+ | **$130+** |
+
+### CI/CD Pipeline for Multi-Site
+
+**GitHub Actions Matrix Deployment:**
+
+```yaml
+# .github/workflows/deploy-sites.yml
+name: Deploy Sites
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sites/**'
+      - 'packages/**'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      sites: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            danieltarazona:
+              - 'sites/danieltarazona.com/**'
+              - 'packages/**'
+            adamrobotics:
+              - 'sites/adamrobotics.com/**'
+              - 'packages/**'
+            adamautomotive:
+              - 'sites/adamautomotive.com/**'
+              - 'packages/**'
+            adamdefense:
+              - 'sites/adamdefense.com/**'
+              - 'packages/**'
+
+  build-and-deploy:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.sites != '[]' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        site: ${{ fromJson(needs.detect-changes.outputs.sites) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build site
+        run: pnpm --filter "${{ matrix.site }}.com" build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy sites/${{ matrix.site }}.com/dist --project-name=${{ matrix.site }}-site
+```
+
+### Shared Component Development Workflow
+
+**Package Development:**
+
+```bash
+# 1. Make changes to shared package
+cd packages/shared-ui
+pnpm dev  # Watch mode for development
+
+# 2. Test changes in a site
+cd ../../sites/danieltarazona.com
+pnpm dev  # Auto-links to local package
+
+# 3. Run tests
+cd ../..
+pnpm test --filter @adam-tech/ui
+
+# 4. Build all packages
+pnpm -r build
+
+# 5. Commit and deploy
+git add .
+git commit -m "feat(shared-ui): add new button variant"
+```
+
+**Version Management:**
+
+```bash
+# Use changesets for versioning
+pnpm changeset  # Create changeset for your changes
+pnpm changeset version  # Update versions
+pnpm changeset publish  # Publish to npm (if using multi-repo)
+```
+
+### Template Checklist for New Sites
+
+When creating a new site from the template, ensure all items are completed:
+
+#### Configuration
+- [ ] Create brand-config.ts with brand tokens
+- [ ] Update astro.config.mjs with site-specific settings
+- [ ] Configure tailwind.config.js to use brand tokens
+- [ ] Create .env file with required variables
+- [ ] Update package.json name and description
+
+#### Assets
+- [ ] Create logo files (light, dark, icon variants)
+- [ ] Create favicon.ico and favicon.svg
+- [ ] Create Open Graph images (1200x630)
+- [ ] Create Twitter Card images
+- [ ] Create Apple Touch icons
+
+#### Content
+- [ ] Update site title and meta descriptions
+- [ ] Create About page content
+- [ ] Create Privacy Policy page
+- [ ] Create Terms of Service page
+- [ ] Update contact information
+
+#### Infrastructure
+- [ ] Add DNS records in Cloudflare
+- [ ] Configure Cloudflare Tunnel routes (if using)
+- [ ] Create Medusa instance (if separate)
+- [ ] Set up Cloudflare Pages project
+- [ ] Configure environment variables in deployment
+
+#### Testing
+- [ ] Verify all pages render correctly
+- [ ] Test contact form submission
+- [ ] Test e-commerce checkout flow
+- [ ] Verify mobile responsiveness
+- [ ] Run Lighthouse audit (target: 90+ scores)
+
+#### Monitoring
+- [ ] Configure analytics (if using)
+- [ ] Set up error tracking
+- [ ] Configure uptime monitoring
+- [ ] Add site to backup scripts
+
+### Summary
+
+This template architecture provides:
+
+1. **Consistency**: Shared components and design tokens ensure brand coherence across all sites while allowing customization
+2. **Efficiency**: Reusable code reduces development time for new sites from weeks to days
+3. **Scalability**: Infrastructure can grow with demand, from single VPS to dedicated resources
+4. **Maintainability**: Bug fixes and improvements to shared packages benefit all sites automatically
+5. **Flexibility**: Each brand can have unique content and products while sharing the underlying technology
+
+**Estimated Time to Launch New Site (Using Template):**
+- Initial setup: 2-4 hours
+- Brand customization: 4-8 hours
+- Content creation: 1-2 days
+- Testing and polish: 1 day
+- **Total: 2-4 days** (vs. 2-4 weeks from scratch)
+
+---
+
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*
