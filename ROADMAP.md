@@ -636,6 +636,314 @@ AWS offers t2.micro/t3.micro for 12 months.
   # Access Coolify dashboard at http://your-server-ip:8000
   ```
 
+### Cloudflare DNS Configuration
+
+Cloudflare provides DNS management, CDN caching, SSL/TLS termination, and DDoS protection. This section covers setting up DNS records for both the apex domain and store subdomain.
+
+#### Wrangler CLI Installation
+
+```bash
+# Install Wrangler CLI globally
+npm install -g wrangler
+
+# Verify installation
+wrangler --version
+
+# Authenticate with Cloudflare account
+wrangler login
+
+# Check account status
+wrangler whoami
+```
+
+#### Adding Domain to Cloudflare
+
+- [ ] **Task 2.5**: Add domain to Cloudflare
+  1. Log in to [Cloudflare Dashboard](https://dash.cloudflare.com)
+  2. Click "Add a Site"
+  3. Enter `danieltarazona.com`
+  4. Select Free plan (or Pro for advanced features)
+  5. Cloudflare will scan existing DNS records
+  6. Update nameservers at your domain registrar:
+     ```
+     # Example Cloudflare nameservers (yours will differ)
+     ns1.cloudflare.com
+     ns2.cloudflare.com
+     ```
+  7. Wait for DNS propagation (up to 24 hours, usually faster)
+
+```bash
+# Verify nameserver propagation
+dig NS danieltarazona.com +short
+
+# Check if Cloudflare is active
+curl -I https://danieltarazona.com | grep "cf-ray"
+```
+
+#### DNS Record Configuration
+
+The following DNS records need to be configured for the architecture:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                          DNS RECORD CONFIGURATION                               │
+├────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  APEX DOMAIN (danieltarazona.com) → Cloudflare Pages                           │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │  Type: CNAME (flattened)  │  Name: @  │  Target: *.pages.dev            │  │
+│  │  Proxy: ✅ Enabled        │  TTL: Auto                                   │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                 │
+│  WWW SUBDOMAIN (www.danieltarazona.com) → Redirect to apex                     │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │  Type: CNAME              │  Name: www  │  Target: danieltarazona.com   │  │
+│  │  Proxy: ✅ Enabled        │  TTL: Auto                                   │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                 │
+│  STORE SUBDOMAIN (store.danieltarazona.com) → Cloudflare Tunnel                │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │  Type: CNAME              │  Name: store  │  Target: <tunnel-id>.cfargotunnel.com │
+│  │  Proxy: ✅ Enabled        │  TTL: Auto                                   │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                 │
+└────────────────────────────────────────────────────────────────────────────────┘
+```
+
+##### DNS Record Tasks
+
+- [ ] **Task 2.6**: Configure DNS records for apex domain
+  ```bash
+  # Using Cloudflare API (alternative to dashboard)
+
+  # Get Zone ID
+  export CF_ZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=danieltarazona.com" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" | jq -r '.result[0].id')
+
+  # Create CNAME record for apex domain (Cloudflare Pages)
+  curl -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data '{
+      "type": "CNAME",
+      "name": "@",
+      "content": "danieltarazona-portfolio.pages.dev",
+      "ttl": 1,
+      "proxied": true
+    }'
+  ```
+
+- [ ] **Task 2.7**: Configure DNS records for www subdomain
+  ```bash
+  # Create CNAME record for www redirect
+  curl -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data '{
+      "type": "CNAME",
+      "name": "www",
+      "content": "danieltarazona.com",
+      "ttl": 1,
+      "proxied": true
+    }'
+  ```
+
+- [ ] **Task 2.8**: Configure CNAME for store subdomain
+  ```bash
+  # Create CNAME record pointing to Cloudflare Tunnel
+  # (Tunnel ID will be created in the Tunnel setup phase)
+  curl -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data '{
+      "type": "CNAME",
+      "name": "store",
+      "content": "<tunnel-id>.cfargotunnel.com",
+      "ttl": 1,
+      "proxied": true
+    }'
+  ```
+
+##### IPv6 Support (Optional A/AAAA Records)
+
+For direct VPS hosting without Cloudflare Pages, use A/AAAA records:
+
+```bash
+# A record for IPv4
+curl -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "type": "A",
+    "name": "@",
+    "content": "YOUR_VPS_IPV4_ADDRESS",
+    "ttl": 1,
+    "proxied": true
+  }'
+
+# AAAA record for IPv6
+curl -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "type": "AAAA",
+    "name": "@",
+    "content": "YOUR_VPS_IPV6_ADDRESS",
+    "ttl": 1,
+    "proxied": true
+  }'
+```
+
+#### Cloudflare Proxy Settings
+
+Enabling the Cloudflare proxy (orange cloud) provides:
+
+| Feature | Description |
+|---------|-------------|
+| **CDN Caching** | Static assets cached at 300+ edge locations |
+| **DDoS Protection** | Layer 3/4/7 attack mitigation |
+| **SSL/TLS** | Free Universal SSL certificate |
+| **IP Masking** | Origin server IP hidden from public |
+| **Compression** | Brotli/Gzip compression for text assets |
+| **HTTP/2 & HTTP/3** | Modern protocol support |
+
+- [ ] **Task 2.9**: Enable proxy for all DNS records
+  - In Cloudflare Dashboard → DNS → Records
+  - Ensure the orange cloud (Proxied) is enabled for all records
+  - **Exception**: Disable proxy for records that need direct IP access (e.g., SSH)
+
+```bash
+# Verify proxy status via API
+curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq '.result[] | {name, type, proxied}'
+```
+
+#### SSL/TLS Configuration
+
+Cloudflare provides free SSL certificates with flexible configuration options.
+
+##### SSL/TLS Encryption Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **Off** | No encryption | ❌ Never use |
+| **Flexible** | HTTPS to Cloudflare, HTTP to origin | ⚠️ Not recommended |
+| **Full** | HTTPS end-to-end (any certificate) | ✅ Good for self-signed |
+| **Full (Strict)** | HTTPS end-to-end (valid certificate) | ✅ Best for production |
+
+- [ ] **Task 2.10**: Configure SSL/TLS settings
+  1. Navigate to **SSL/TLS** → **Overview** in Cloudflare Dashboard
+  2. Set encryption mode to **Full (Strict)**
+  3. Enable the following settings:
+     - ✅ Always Use HTTPS
+     - ✅ Automatic HTTPS Rewrites
+     - ✅ TLS 1.3 (minimum TLS 1.2)
+
+```bash
+# Set SSL mode to Full (Strict) via API
+curl -X PATCH "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/settings/ssl" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"value": "strict"}'
+
+# Enable Always Use HTTPS
+curl -X PATCH "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/settings/always_use_https" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"value": "on"}'
+
+# Enable TLS 1.3
+curl -X PATCH "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/settings/min_tls_version" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"value": "1.2"}'
+
+# Enable Automatic HTTPS Rewrites
+curl -X PATCH "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/settings/automatic_https_rewrites" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"value": "on"}'
+```
+
+##### Origin Certificates
+
+For Full (Strict) mode with self-hosted origin, generate a Cloudflare Origin Certificate:
+
+- [ ] **Task 2.11**: Generate Cloudflare Origin Certificate
+  1. Navigate to **SSL/TLS** → **Origin Server**
+  2. Click "Create Certificate"
+  3. Select: Generate private key and CSR with Cloudflare
+  4. Hostnames: `danieltarazona.com`, `*.danieltarazona.com`
+  5. Certificate validity: 15 years (default)
+  6. Save the certificate and private key
+
+```bash
+# Install certificate on origin server (Coolify/VPS)
+sudo mkdir -p /etc/ssl/cloudflare
+sudo nano /etc/ssl/cloudflare/origin-cert.pem  # Paste certificate
+sudo nano /etc/ssl/cloudflare/origin-key.pem   # Paste private key
+
+# Set proper permissions
+sudo chmod 600 /etc/ssl/cloudflare/origin-key.pem
+sudo chmod 644 /etc/ssl/cloudflare/origin-cert.pem
+```
+
+##### Edge Certificates
+
+- [ ] **Task 2.12**: Verify Edge Certificate status
+  1. Navigate to **SSL/TLS** → **Edge Certificates**
+  2. Ensure "Universal SSL" status is "Active"
+  3. Verify certificate covers: `danieltarazona.com`, `*.danieltarazona.com`
+
+```bash
+# Check certificate status via API
+curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/ssl/certificate_packs" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq '.result[0].status'
+```
+
+#### Additional Security Settings
+
+- [ ] **Task 2.13**: Configure security headers and settings
+  ```bash
+  # Enable HSTS (HTTP Strict Transport Security)
+  curl -X PATCH "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/settings/security_header" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data '{
+      "value": {
+        "strict_transport_security": {
+          "enabled": true,
+          "max_age": 31536000,
+          "include_subdomains": true,
+          "preload": true
+        }
+      }
+    }'
+
+  # Set Security Level to Medium
+  curl -X PATCH "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/settings/security_level" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data '{"value": "medium"}'
+
+  # Enable Browser Integrity Check
+  curl -X PATCH "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/settings/browser_check" \
+    -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    -H "Content-Type: application/json" \
+    --data '{"value": "on"}'
+  ```
+
+#### DNS Configuration Summary
+
+| Record | Type | Name | Target | Proxied | Purpose |
+|--------|------|------|--------|---------|---------|
+| Apex | CNAME | @ | `*.pages.dev` | ✅ Yes | Main portfolio site |
+| WWW | CNAME | www | `danieltarazona.com` | ✅ Yes | Redirect to apex |
+| Store | CNAME | store | `<tunnel-id>.cfargotunnel.com` | ✅ Yes | E-commerce store |
+| API | CNAME | api | `<tunnel-id>.cfargotunnel.com` | ✅ Yes | Medusa API (optional) |
+| Admin | CNAME | admin | `<tunnel-id>.cfargotunnel.com` | ✅ Yes | Medusa Admin (optional) |
+
 ---
 
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*
