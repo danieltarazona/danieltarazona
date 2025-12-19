@@ -1366,4 +1366,695 @@ For additional security on admin endpoints, configure Cloudflare Access:
 
 ---
 
+## Phase 2: Database & Backend Services
+
+This phase covers PostgreSQL database setup with Supabase as the primary managed database solution, including schema design, migrations, and connection configuration for both the portfolio site and e-commerce store.
+
+### Supabase PostgreSQL Setup
+
+Supabase provides a managed PostgreSQL database with additional features like Row Level Security, Authentication, Realtime subscriptions, and Edge Functions. For this project, Supabase will be used for:
+
+1. **Portfolio Site**: Contact form submissions, newsletter signups, analytics events
+2. **E-Commerce Store**: Optional backup/analytics database (Medusa uses its own PostgreSQL)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         SUPABASE ARCHITECTURE                                    │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                          SUPABASE CLOUD                                  │   │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐  │   │
+│  │  │   PostgreSQL    │  │   PostgREST     │  │     GoTrue Auth         │  │   │
+│  │  │   Database      │  │   REST API      │  │   (Authentication)      │  │   │
+│  │  │   (500MB Free)  │  │   (Auto-gen)    │  │   (50K MAU Free)        │  │   │
+│  │  └────────┬────────┘  └────────┬────────┘  └─────────────────────────┘  │   │
+│  │           │                    │                                         │   │
+│  │           └─────────┬──────────┘                                         │   │
+│  │                     │                                                    │   │
+│  │  ┌─────────────────┴─────────────────┐  ┌─────────────────────────────┐ │   │
+│  │  │         Supabase API              │  │       Edge Functions        │ │   │
+│  │  │  https://<project>.supabase.co    │  │   (Deno-based serverless)   │ │   │
+│  │  └───────────────────────────────────┘  └─────────────────────────────┘ │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+│                              │                                                   │
+│                              │ HTTPS/WebSocket                                   │
+│                              ▼                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────────┐   │
+│  │                         CLIENT APPLICATIONS                              │   │
+│  │  ┌─────────────────────┐              ┌─────────────────────┐           │   │
+│  │  │   Astro Portfolio   │              │   Astro Storefront  │           │   │
+│  │  │   - Contact Form    │              │   - Analytics       │           │   │
+│  │  │   - Newsletter      │              │   - User Prefs      │           │   │
+│  │  └─────────────────────┘              └─────────────────────┘           │   │
+│  └─────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Supabase Free Tier Limits
+
+Understanding the free tier limits is crucial for cost-effective deployment:
+
+| Resource | Free Tier Limit | Notes |
+|----------|-----------------|-------|
+| **Database Size** | 500 MB | PostgreSQL storage limit |
+| **Monthly Active Users** | 50,000 MAU | For Supabase Auth |
+| **Edge Function Invocations** | 500,000/month | Serverless function calls |
+| **Realtime Messages** | 2 million/month | WebSocket messages |
+| **Storage** | 1 GB | File storage (S3-compatible) |
+| **Bandwidth** | 2 GB/month | Database egress |
+| **Projects** | 2 active | Can pause/resume others |
+| **Daily Backups** | 7 days retention | Point-in-time recovery |
+
+**Monitoring Usage:**
+```bash
+# Check database size via SQL
+SELECT pg_size_pretty(pg_database_size('postgres')) as db_size;
+
+# Check table sizes
+SELECT
+  schemaname,
+  tablename,
+  pg_size_pretty(pg_total_relation_size(schemaname || '.' || tablename)) as size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size(schemaname || '.' || tablename) DESC;
+```
+
+#### Supabase CLI Installation
+
+- [ ] **Task 3.1**: Install Supabase CLI
+  ```bash
+  # Install via npm (recommended)
+  npm install -g supabase
+
+  # Verify installation
+  supabase --version
+  # supabase version 1.x.x
+
+  # Alternative: Install via Homebrew (macOS)
+  brew install supabase/tap/supabase
+
+  # Alternative: Install via Scoop (Windows)
+  scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
+  scoop install supabase
+
+  # Alternative: Direct download
+  # Visit: https://github.com/supabase/cli/releases
+  ```
+
+- [ ] **Task 3.2**: Authenticate with Supabase
+  ```bash
+  # Login to Supabase (opens browser for OAuth)
+  supabase login
+
+  # Verify authentication
+  supabase projects list
+
+  # Check logged-in account
+  supabase orgs list
+  ```
+
+#### Supabase Project Creation
+
+- [ ] **Task 3.3**: Create a new Supabase project
+
+  **Via Dashboard (Recommended for first time):**
+  1. Navigate to [app.supabase.com](https://app.supabase.com)
+  2. Click "New Project"
+  3. Configure project settings:
+     - **Organization**: Select or create organization
+     - **Project name**: `danieltarazona-portfolio`
+     - **Database password**: Generate strong password (save securely!)
+     - **Region**: Choose closest to target audience
+       - `us-east-1` (N. Virginia) - US East
+       - `us-west-1` (N. California) - US West
+       - `eu-west-1` (Ireland) - Europe
+       - `ap-southeast-1` (Singapore) - Asia
+     - **Pricing Plan**: Free tier
+  4. Wait for project provisioning (~2 minutes)
+
+  **Via CLI:**
+  ```bash
+  # Create project via CLI (requires existing organization)
+  supabase projects create danieltarazona-portfolio \
+    --org-id <your-org-id> \
+    --db-password "<secure-password>" \
+    --region us-east-1
+
+  # Get organization ID
+  supabase orgs list
+
+  # List projects to confirm creation
+  supabase projects list
+  ```
+
+#### Project Configuration & Connection
+
+- [ ] **Task 3.4**: Retrieve project credentials and API keys
+  ```bash
+  # Get project API settings
+  supabase projects api-keys --project-ref <project-ref>
+
+  # The output will include:
+  # - anon (public) key: Safe to use in browser
+  # - service_role key: Admin access, NEVER expose in client-side code
+  ```
+
+  **Environment Variables Setup:**
+  ```bash
+  # Create .env file for local development
+  cat > .env << 'EOF'
+  # Supabase Configuration
+  SUPABASE_URL=https://<project-ref>.supabase.co
+  SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+  # Database Connection (for direct access)
+  DATABASE_URL=postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres
+
+  # Connection Pooling (recommended for production)
+  DATABASE_POOLER_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.co:6543/postgres
+  EOF
+
+  # Secure the file
+  chmod 600 .env
+  ```
+
+  **Connection String Formats:**
+
+  | Type | Port | Use Case | Connection String |
+  |------|------|----------|-------------------|
+  | **Direct** | 5432 | Migrations, admin | `postgresql://postgres:[password]@db.[ref].supabase.co:5432/postgres` |
+  | **Session Pooler** | 5432 | Long-lived connections | `postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.co:5432/postgres` |
+  | **Transaction Pooler** | 6543 | Serverless, Lambda | `postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.co:6543/postgres` |
+
+- [ ] **Task 3.5**: Test database connection
+  ```bash
+  # Install PostgreSQL client (if not installed)
+  sudo apt install postgresql-client -y  # Debian/Ubuntu
+  brew install libpq                      # macOS
+
+  # Test direct connection
+  psql "postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres" -c "SELECT version();"
+
+  # Test pooled connection
+  psql "postgresql://postgres.<project-ref>:<password>@aws-0-us-east-1.pooler.supabase.co:6543/postgres" -c "SELECT 1;"
+  ```
+
+#### Local Development Setup
+
+- [ ] **Task 3.6**: Initialize Supabase for local development
+  ```bash
+  # Navigate to your project directory
+  cd danieltarazona-portfolio
+
+  # Initialize Supabase (creates supabase/ directory)
+  supabase init
+
+  # This creates:
+  # supabase/
+  # ├── config.toml       # Local Supabase configuration
+  # ├── seed.sql          # Seed data for development
+  # └── migrations/       # Database migration files
+  ```
+
+  **Local Configuration (`supabase/config.toml`):**
+  ```toml
+  # supabase/config.toml
+  [api]
+  enabled = true
+  port = 54321
+  schemas = ["public", "graphql_public"]
+  extra_search_path = ["public", "extensions"]
+  max_rows = 1000
+
+  [db]
+  port = 54322
+  shadow_port = 54320
+  major_version = 15
+
+  [studio]
+  enabled = true
+  port = 54323
+  api_url = "http://localhost"
+
+  [auth]
+  enabled = true
+  site_url = "http://localhost:3000"
+  additional_redirect_urls = ["https://localhost:3000"]
+  jwt_expiry = 3600
+  enable_signup = true
+
+  [auth.email]
+  enable_signup = true
+  double_confirm_changes = true
+  enable_confirmations = false
+  ```
+
+- [ ] **Task 3.7**: Start local Supabase stack
+  ```bash
+  # Start local Supabase (requires Docker)
+  supabase start
+
+  # Output will show local URLs:
+  # API URL: http://localhost:54321
+  # GraphQL URL: http://localhost:54321/graphql/v1
+  # Studio URL: http://localhost:54323
+  # DB URL: postgresql://postgres:postgres@localhost:54322/postgres
+  # Anon key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  # Service role key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+  # Stop local Supabase
+  supabase stop
+
+  # Stop and reset database (removes all data)
+  supabase stop --no-backup
+  ```
+
+#### Database Schema Design
+
+- [ ] **Task 3.8**: Create database schema for portfolio site
+  ```bash
+  # Create initial migration
+  supabase migration new create_portfolio_tables
+  ```
+
+  **Migration file (`supabase/migrations/YYYYMMDD_create_portfolio_tables.sql`):**
+  ```sql
+  -- Contact Form Submissions Table
+  CREATE TABLE IF NOT EXISTS contact_submissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    subject VARCHAR(500),
+    message TEXT NOT NULL,
+    ip_address INET,
+    user_agent TEXT,
+    referrer TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    read_at TIMESTAMPTZ,
+    replied_at TIMESTAMPTZ,
+    archived BOOLEAN DEFAULT FALSE
+  );
+
+  -- Create index for querying unread submissions
+  CREATE INDEX idx_contact_unread ON contact_submissions(created_at DESC)
+    WHERE read_at IS NULL AND archived = FALSE;
+
+  -- Newsletter Signups Table
+  CREATE TABLE IF NOT EXISTS newsletter_signups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255),
+    source VARCHAR(100),
+    confirmed BOOLEAN DEFAULT FALSE,
+    confirmation_token UUID DEFAULT gen_random_uuid(),
+    confirmed_at TIMESTAMPTZ,
+    unsubscribed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
+  -- Create index for email lookup
+  CREATE INDEX idx_newsletter_email ON newsletter_signups(email);
+
+  -- Analytics Events Table (lightweight, for custom tracking)
+  CREATE TABLE IF NOT EXISTS analytics_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_type VARCHAR(100) NOT NULL,
+    page_path VARCHAR(500),
+    referrer TEXT,
+    user_agent TEXT,
+    ip_hash VARCHAR(64),  -- Hashed IP for privacy
+    session_id VARCHAR(100),
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
+  -- Create indexes for analytics queries
+  CREATE INDEX idx_analytics_event_type ON analytics_events(event_type);
+  CREATE INDEX idx_analytics_created_at ON analytics_events(created_at DESC);
+  CREATE INDEX idx_analytics_page_path ON analytics_events(page_path);
+
+  -- Partition analytics table by month for performance (optional for large scale)
+  -- CREATE TABLE analytics_events_y2024m01 PARTITION OF analytics_events
+  --   FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
+
+  -- Row Level Security Policies
+  ALTER TABLE contact_submissions ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE newsletter_signups ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE analytics_events ENABLE ROW LEVEL SECURITY;
+
+  -- Policy: Allow anonymous inserts (for public forms)
+  CREATE POLICY "Allow anonymous contact submission" ON contact_submissions
+    FOR INSERT TO anon
+    WITH CHECK (true);
+
+  CREATE POLICY "Allow anonymous newsletter signup" ON newsletter_signups
+    FOR INSERT TO anon
+    WITH CHECK (true);
+
+  CREATE POLICY "Allow anonymous analytics events" ON analytics_events
+    FOR INSERT TO anon
+    WITH CHECK (true);
+
+  -- Policy: Only service_role can read/update (for admin access)
+  CREATE POLICY "Service role full access to contacts" ON contact_submissions
+    FOR ALL TO service_role
+    USING (true);
+
+  CREATE POLICY "Service role full access to newsletter" ON newsletter_signups
+    FOR ALL TO service_role
+    USING (true);
+
+  CREATE POLICY "Service role full access to analytics" ON analytics_events
+    FOR ALL TO service_role
+    USING (true);
+
+  -- Function to hash IP addresses for privacy
+  CREATE OR REPLACE FUNCTION hash_ip(ip INET)
+  RETURNS VARCHAR(64) AS $$
+  BEGIN
+    RETURN encode(sha256(ip::text::bytea), 'hex');
+  END;
+  $$ LANGUAGE plpgsql IMMUTABLE;
+
+  -- Comments for documentation
+  COMMENT ON TABLE contact_submissions IS 'Stores contact form submissions from the portfolio site';
+  COMMENT ON TABLE newsletter_signups IS 'Stores newsletter subscription emails';
+  COMMENT ON TABLE analytics_events IS 'Lightweight analytics events for custom tracking';
+  ```
+
+#### Schema Migrations
+
+- [ ] **Task 3.9**: Apply migrations to local and remote databases
+  ```bash
+  # Apply migrations to local database
+  supabase migration up
+
+  # Check migration status
+  supabase migration list
+
+  # Generate TypeScript types from schema (for type safety)
+  supabase gen types typescript --local > src/types/supabase.ts
+
+  # Link to remote project (required for pushing migrations)
+  supabase link --project-ref <project-ref>
+
+  # Push migrations to remote database
+  supabase db push
+
+  # Pull remote changes (if schema was modified via dashboard)
+  supabase db pull
+
+  # Diff local vs remote schema
+  supabase db diff
+  ```
+
+- [ ] **Task 3.10**: Create seed data for development
+  ```bash
+  # Edit seed file
+  nano supabase/seed.sql
+  ```
+
+  **Seed file (`supabase/seed.sql`):**
+  ```sql
+  -- Seed data for local development
+
+  -- Sample contact submissions
+  INSERT INTO contact_submissions (name, email, subject, message, created_at)
+  VALUES
+    ('John Doe', 'john@example.com', 'Project Inquiry', 'I''d like to discuss a potential project collaboration.', NOW() - INTERVAL '2 days'),
+    ('Jane Smith', 'jane@example.com', 'Photography Question', 'What camera gear do you use for your portfolio shots?', NOW() - INTERVAL '1 day'),
+    ('Bob Wilson', 'bob@example.com', 'Speaking Request', 'Would you be available for a conference talk?', NOW());
+
+  -- Sample newsletter signups
+  INSERT INTO newsletter_signups (email, name, source, confirmed)
+  VALUES
+    ('subscriber1@example.com', 'Alice', 'homepage', true),
+    ('subscriber2@example.com', 'Bob', 'blog', true),
+    ('subscriber3@example.com', NULL, 'footer', false);
+
+  -- Sample analytics events
+  INSERT INTO analytics_events (event_type, page_path, metadata)
+  VALUES
+    ('page_view', '/', '{"source": "direct"}'),
+    ('page_view', '/gallery', '{"source": "homepage"}'),
+    ('page_view', '/about', '{"source": "navigation"}'),
+    ('button_click', '/contact', '{"button": "submit"}');
+  ```
+
+  ```bash
+  # Apply seed data (resets and seeds local database)
+  supabase db reset
+
+  # This runs:
+  # 1. supabase migration up (applies all migrations)
+  # 2. supabase/seed.sql (inserts seed data)
+  ```
+
+#### Supabase Client Configuration
+
+- [ ] **Task 3.11**: Install and configure Supabase JavaScript client
+  ```bash
+  # Install Supabase client for Astro
+  npm install @supabase/supabase-js
+  ```
+
+  **Client configuration (`src/lib/supabase.ts`):**
+  ```typescript
+  import { createClient } from '@supabase/supabase-js';
+  import type { Database } from '../types/supabase';
+
+  // Environment variables
+  const supabaseUrl = import.meta.env.SUPABASE_URL || import.meta.env.PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.SUPABASE_ANON_KEY || import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase environment variables');
+  }
+
+  // Public client (safe for browser)
+  export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false, // Disable for static sites
+      autoRefreshToken: false,
+    },
+  });
+
+  // Server-side client with service role (NEVER expose to client)
+  export const supabaseAdmin = createClient<Database>(
+    supabaseUrl,
+    import.meta.env.SUPABASE_SERVICE_ROLE_KEY,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    }
+  );
+  ```
+
+  **Example: Contact form submission:**
+  ```typescript
+  // src/lib/contact.ts
+  import { supabase } from './supabase';
+
+  interface ContactFormData {
+    name: string;
+    email: string;
+    subject?: string;
+    message: string;
+  }
+
+  export async function submitContactForm(data: ContactFormData) {
+    const { error } = await supabase
+      .from('contact_submissions')
+      .insert({
+        name: data.name,
+        email: data.email,
+        subject: data.subject,
+        message: data.message,
+      });
+
+    if (error) {
+      console.error('Error submitting contact form:', error);
+      throw new Error('Failed to submit contact form');
+    }
+
+    return { success: true };
+  }
+  ```
+
+#### Edge Functions for Form Processing
+
+- [ ] **Task 3.12**: Create Edge Function for form validation and email notifications
+  ```bash
+  # Create new Edge Function
+  supabase functions new contact-form-handler
+  ```
+
+  **Edge Function (`supabase/functions/contact-form-handler/index.ts`):**
+  ```typescript
+  import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
+
+  interface ContactPayload {
+    name: string;
+    email: string;
+    subject?: string;
+    message: string;
+  }
+
+  serve(async (req) => {
+    // Handle CORS preflight
+    if (req.method === 'OPTIONS') {
+      return new Response('ok', { headers: corsHeaders });
+    }
+
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
+
+      const payload: ContactPayload = await req.json();
+
+      // Validate required fields
+      if (!payload.name || !payload.email || !payload.message) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required fields' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(payload.email)) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid email format' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Insert into database
+      const { error: dbError } = await supabase
+        .from('contact_submissions')
+        .insert({
+          name: payload.name,
+          email: payload.email,
+          subject: payload.subject,
+          message: payload.message,
+          ip_address: req.headers.get('cf-connecting-ip'),
+          user_agent: req.headers.get('user-agent'),
+          referrer: req.headers.get('referer'),
+        });
+
+      if (dbError) throw dbError;
+
+      // TODO: Send email notification (integrate with Resend, SendGrid, etc.)
+      // await sendEmailNotification(payload);
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Form submitted successfully' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (error) {
+      console.error('Error:', error);
+      return new Response(
+        JSON.stringify({ error: 'Internal server error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  });
+  ```
+
+  ```bash
+  # Deploy Edge Function
+  supabase functions deploy contact-form-handler
+
+  # Test locally
+  supabase functions serve contact-form-handler
+
+  # Invoke function
+  curl -X POST http://localhost:54321/functions/v1/contact-form-handler \
+    -H "Authorization: Bearer <anon-key>" \
+    -H "Content-Type: application/json" \
+    -d '{"name":"Test","email":"test@example.com","message":"Hello"}'
+  ```
+
+#### Database Backup Strategy
+
+- [ ] **Task 3.13**: Configure and document backup procedures
+  ```bash
+  # Supabase provides automatic daily backups for 7 days (free tier)
+  # For additional backup strategies:
+
+  # Export database schema
+  supabase db dump --schema-only > backup/schema_$(date +%Y%m%d).sql
+
+  # Export full database (data + schema)
+  pg_dump "$DATABASE_URL" > backup/full_$(date +%Y%m%d).sql
+
+  # Export specific tables
+  pg_dump "$DATABASE_URL" -t contact_submissions -t newsletter_signups > backup/forms_$(date +%Y%m%d).sql
+  ```
+
+  **Automated backup script (`scripts/backup-supabase.sh`):**
+  ```bash
+  #!/bin/bash
+  # Supabase database backup script
+
+  set -e
+
+  BACKUP_DIR="./backups"
+  DATE=$(date +%Y%m%d_%H%M%S)
+
+  # Create backup directory
+  mkdir -p "$BACKUP_DIR"
+
+  # Export schema
+  echo "Exporting schema..."
+  pg_dump "$DATABASE_URL" --schema-only > "$BACKUP_DIR/schema_$DATE.sql"
+
+  # Export data
+  echo "Exporting data..."
+  pg_dump "$DATABASE_URL" --data-only > "$BACKUP_DIR/data_$DATE.sql"
+
+  # Compress backups
+  gzip "$BACKUP_DIR/schema_$DATE.sql"
+  gzip "$BACKUP_DIR/data_$DATE.sql"
+
+  # Remove backups older than 30 days
+  find "$BACKUP_DIR" -name "*.sql.gz" -mtime +30 -delete
+
+  echo "Backup completed: $BACKUP_DIR/*_$DATE.sql.gz"
+  ```
+
+#### Supabase Tasks Summary
+
+| Task | Description | Status |
+|------|-------------|--------|
+| 3.1 | Install Supabase CLI | [ ] |
+| 3.2 | Authenticate with Supabase | [ ] |
+| 3.3 | Create Supabase project | [ ] |
+| 3.4 | Retrieve credentials and API keys | [ ] |
+| 3.5 | Test database connection | [ ] |
+| 3.6 | Initialize local development | [ ] |
+| 3.7 | Start local Supabase stack | [ ] |
+| 3.8 | Create database schema | [ ] |
+| 3.9 | Apply migrations | [ ] |
+| 3.10 | Create seed data | [ ] |
+| 3.11 | Configure Supabase client | [ ] |
+| 3.12 | Create Edge Functions | [ ] |
+| 3.13 | Configure backup strategy | [ ] |
+
+---
+
 *This roadmap serves as a reusable template for future multi-domain projects with consistent theming and shared infrastructure patterns.*

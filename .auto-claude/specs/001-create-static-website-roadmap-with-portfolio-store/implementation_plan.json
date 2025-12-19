@@ -115,7 +115,7 @@
           "id": "2.3",
           "title": "Document Cloudflare Tunnel setup for self-hosted services",
           "description": "Add tasks for setting up Cloudflare Tunnel (cloudflared) to expose Medusa and Coolify without opening ports",
-          "status": "pending",
+          "status": "completed",
           "estimated_minutes": 15,
           "files_to_create": [],
           "files_to_modify": [
@@ -125,7 +125,9 @@
             "Cloudflared installation documented",
             "Tunnel creation commands included",
             "Ingress rules for multiple services explained"
-          ]
+          ],
+          "notes": "Added comprehensive Cloudflare Tunnel Setup section to ROADMAP.md including: (1) Why Cloudflare Tunnel diagram and comparison table vs open ports, (2) Cloudflared installation instructions for Debian/Ubuntu, direct download, ARM64, and Docker, (3) Authentication with Cloudflare via OAuth, (4) Creating named tunnels with CLI commands, (5) Full config.yml example with ingress rules for Medusa store, admin, API, and Coolify services, (6) DNS route configuration via CLI and API, (7) Running tunnel in foreground and debug mode, (8) Systemd service file with security hardening, (9) Zero Trust Access policies for admin endpoints (optional), (10) Health monitoring scripts and API checks, (11) Architecture diagram showing tunnel data flow, (12) Tasks 2.14-2.22 summary table. Committed as 837a76d.",
+          "updated_at": "2025-12-19T17:00:48.139142+00:00"
         }
       ]
     },
@@ -582,5 +584,5 @@
       "GitHub account"
     ]
   },
-  "last_updated": "2025-12-19T16:57:53.109771+00:00"
+  "last_updated": "2025-12-19T17:00:48.139158+00:00"
 }
