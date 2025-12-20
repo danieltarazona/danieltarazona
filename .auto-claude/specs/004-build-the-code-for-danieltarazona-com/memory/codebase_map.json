@@ -1,0 +1,10 @@
+{
+  "discovered_files": {
+    ".github/workflows/deploy.yml": {
+      "description": "Created deploy.yml workflow file - it was referenced in spec but did not exist in repository. Uses cloudflare/wrangler-action@v3 with CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets.",
+      "category": "infrastructure",
+      "discovered_at": "2025-12-20T16:30:09.191193+00:00"
+    }
+  },
+  "last_updated": "2025-12-20T16:30:09.191213+00:00"
+}

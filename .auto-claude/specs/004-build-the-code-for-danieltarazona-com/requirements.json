@@ -1,0 +1,4 @@
+{
+  "task_description": "Publish the website and configure the DNS using Cloudflare DNS, the domain is registered in Namecheap",
+  "workflow_type": "feature"
+}

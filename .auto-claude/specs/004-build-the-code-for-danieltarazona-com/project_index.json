@@ -1,0 +1,73 @@
+{
+  "project_root": "/Users/data/Projects/DanielTarazona",
+  "project_type": "single",
+  "services": {
+    "main": {
+      "name": "main",
+      "path": "/Users/data/Projects/DanielTarazona",
+      "language": "TypeScript",
+      "framework": "Astro",
+      "type": "frontend",
+      "package_manager": "npm",
+      "default_port": 4321,
+      "styling": "Tailwind CSS",
+      "dev_command": "npm run dev",
+      "key_directories": {
+        "src": {
+          "path": "src",
+          "purpose": "Source code"
+        }
+      },
+      "dependencies": [
+        "@astrojs/sitemap",
+        "@astrojs/tailwind",
+        "astro",
+        "tailwindcss"
+      ],
+      "dev_dependencies": [
+        "@types/node",
+        "autoprefixer",
+        "postcss",
+        "typescript"
+      ],
+      "environment": {
+        "variables": {
+          "PUBLIC_SITE_URL": {
+            "value": null,
+            "source": ".env.example",
+            "type": "string",
+            "sensitive": false,
+            "required": true
+          },
+          "PUBLIC_GITHUB_USERNAME": {
+            "value": null,
+            "source": ".env.example",
+            "type": "string",
+            "sensitive": false,
+            "required": true
+          },
+          "PUBLIC_LINKEDIN_URL": {
+            "value": null,
+            "source": ".env.example",
+            "type": "string",
+            "sensitive": false,
+            "required": true
+          }
+        },
+        "required_count": 3,
+        "optional_count": 0,
+        "detected_count": 3
+      }
+    }
+  },
+  "infrastructure": {
+    "ci": "GitHub Actions",
+    "ci_workflows": [
+      "snake.yml",
+      "deploy.yml"
+    ]
+  },
+  "conventions": {
+    "typescript": true
+  }
+}

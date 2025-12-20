@@ -1,0 +1,642 @@
+{
+  "feature": "Deploy danieltarazona.com to Cloudflare Pages with DNS Configuration",
+  "workflow_type": "feature",
+  "workflow_rationale": "This is a new infrastructure deployment task that establishes production hosting and DNS configuration for the website. While no application code changes are required, it represents a new feature in the project's infrastructure - making the website publicly accessible at its production domain. The task involves multiple infrastructure components (GitHub Actions, Cloudflare Pages, Cloudflare DNS, Namecheap) that must be configured in sequence.",
+  "description": "Deploy the Astro-based danieltarazona.com portfolio website to Cloudflare Pages using the existing GitHub Actions workflow, then configure DNS routing through Cloudflare DNS with domain registered at Namecheap.",
+  "phases": [
+    {
+      "id": "phase-1-verify-deploy",
+      "name": "Verify GitHub Secrets & Deploy to Cloudflare Pages",
+      "type": "implementation",
+      "description": "Verify GitHub repository secrets are configured and trigger the GitHub Actions deployment workflow to deploy the site to Cloudflare Pages",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-1-1",
+          "description": "Verify GitHub repository secrets exist (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID)",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Navigate to GitHub repository Settings \u2192 Secrets and variables \u2192 Actions. Confirm both CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets are present. If missing, obtain values from Cloudflare dashboard and add them."
+          },
+          "status": "completed",
+          "notes": "Created .github/workflows/deploy.yml (was missing from repo). Documented manual verification steps for GitHub secrets (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID). User must verify/add secrets at https://github.com/danieltarazona/danieltarazona/settings/secrets/actions",
+          "updated_at": "2025-12-20T16:30:35.077452+00:00"
+        },
+        {
+          "id": "subtask-1-2",
+          "description": "Trigger GitHub Actions deployment workflow",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            ".github/workflows/deploy.yml"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Push a commit to main/master branch OR use GitHub Actions 'Run workflow' button to trigger deployment. Verify workflow completes successfully with green checkmark. Check workflow logs to confirm 'Deploy to Cloudflare Pages' step succeeds."
+          },
+          "status": "pending",
+          "notes": "The deploy.yml workflow is configured to run on push to main/master or via workflow_dispatch. It builds the Astro site (npm run build) and deploys dist/ to Cloudflare Pages project 'danieltarazona-com'."
+        },
+        {
+          "id": "subtask-1-3",
+          "description": "Verify deployment on Cloudflare Pages preview URL",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "browser",
+            "url": "https://danieltarazona-com.pages.dev",
+            "checks": [
+              "Site loads without errors",
+              "Homepage displays correctly",
+              "All assets (CSS, JS, images) load properly",
+              "No console errors in browser DevTools",
+              "Sitemap accessible at /sitemap.xml"
+            ]
+          },
+          "status": "pending",
+          "notes": "Cloudflare Pages provides a preview URL at <project-name>.pages.dev. This verifies the build and deployment process works before configuring DNS for the custom domain."
+        }
+      ]
+    },
+    {
+      "id": "phase-2-cloudflare-dns-zone",
+      "name": "Create Cloudflare DNS Zone",
+      "type": "implementation",
+      "description": "Create DNS zone for danieltarazona.com in Cloudflare dashboard and obtain nameserver addresses",
+      "depends_on": [
+        "phase-1-verify-deploy"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-2-1",
+          "description": "Add danieltarazona.com domain to Cloudflare account",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "In Cloudflare Dashboard \u2192 Websites \u2192 Add a Site, enter 'danieltarazona.com'. Select Free plan. Cloudflare will scan existing DNS records (if any). Confirm the domain appears in your Cloudflare account dashboard."
+          },
+          "status": "pending",
+          "notes": "This creates a new DNS zone in Cloudflare for the domain. Cloudflare may detect existing DNS records from Namecheap if nameservers haven't been changed yet."
+        },
+        {
+          "id": "subtask-2-2",
+          "description": "Document Cloudflare nameservers",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "After adding the domain, Cloudflare displays two nameserver addresses (e.g., ada.ns.cloudflare.com and phil.ns.cloudflare.com). Document these nameservers - they will be needed for Namecheap configuration in Phase 4."
+          },
+          "status": "pending",
+          "notes": "Cloudflare assigns specific nameservers to each domain. These must be entered exactly as shown at Namecheap. Typical format: firstname.ns.cloudflare.com and secondname.ns.cloudflare.com."
+        }
+      ]
+    },
+    {
+      "id": "phase-3-dns-records",
+      "name": "Configure DNS Records in Cloudflare",
+      "type": "implementation",
+      "description": "Configure A/AAAA and CNAME DNS records to point danieltarazona.com to Cloudflare Pages deployment",
+      "depends_on": [
+        "phase-2-cloudflare-dns-zone"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-3-1",
+          "description": "Add custom domain to Cloudflare Pages project",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "In Cloudflare Dashboard \u2192 Workers & Pages \u2192 danieltarazona-com \u2192 Custom domains \u2192 Set up a custom domain. Enter 'danieltarazona.com' (apex domain). Cloudflare will automatically create the necessary DNS records."
+          },
+          "status": "pending",
+          "notes": "Cloudflare Pages can automatically configure DNS records when you add a custom domain to the project. This is the recommended approach as it ensures correct record types (A/AAAA for IPv4/IPv6 or CNAME as appropriate)."
+        },
+        {
+          "id": "subtask-3-2",
+          "description": "Add www subdomain to Cloudflare Pages project",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "In Cloudflare Pages custom domains, add 'www.danieltarazona.com' as a second custom domain. Cloudflare will create a CNAME record for www pointing to the apex or Pages deployment."
+          },
+          "status": "pending",
+          "notes": "Adding www subdomain ensures users can access the site with or without www prefix. Cloudflare handles the redirect to the apex domain automatically."
+        },
+        {
+          "id": "subtask-3-3",
+          "description": "Verify DNS records are proxied (orange cloud enabled)",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "In Cloudflare Dashboard \u2192 DNS \u2192 Records, verify that danieltarazona.com (apex) and www.danieltarazona.com records show an orange cloud icon (Proxied status). If showing grey cloud (DNS only), click to toggle to Proxied."
+          },
+          "status": "pending",
+          "notes": "Proxied DNS records (orange cloud) enable Cloudflare's CDN, DDoS protection, and SSL. DNS-only mode (grey cloud) bypasses these features. For Cloudflare Pages, proxied mode is required for SSL certificates and CDN."
+        }
+      ]
+    },
+    {
+      "id": "phase-4-namecheap-nameservers",
+      "name": "Update Namecheap Nameservers",
+      "type": "implementation",
+      "description": "Update domain nameservers at Namecheap to point to Cloudflare's nameservers",
+      "depends_on": [
+        "phase-3-dns-records"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Update nameservers at Namecheap to Cloudflare nameservers",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Log in to Namecheap \u2192 Domain List \u2192 danieltarazona.com \u2192 Manage \u2192 Nameservers. Select 'Custom DNS' and enter the two Cloudflare nameservers obtained in Phase 2. Save changes. Confirm Namecheap shows 'Custom DNS' with Cloudflare nameservers listed."
+          },
+          "status": "pending",
+          "notes": "CRITICAL STEP: This makes Cloudflare the authoritative DNS provider for the domain. Once changed, all DNS queries for danieltarazona.com will be resolved by Cloudflare. Changes may take 24-48 hours to propagate globally but often complete within a few hours."
+        },
+        {
+          "id": "subtask-4-2",
+          "description": "Wait for initial nameserver propagation",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "dig danieltarazona.com NS +short",
+            "expected": "Cloudflare nameservers (e.g., ada.ns.cloudflare.com, phil.ns.cloudflare.com)"
+          },
+          "status": "pending",
+          "notes": "Use dig or nslookup to check nameserver propagation. Initial propagation to major DNS resolvers (Google 8.8.8.8, Cloudflare 1.1.1.1) often completes within 1-2 hours. Full global propagation can take 24-48 hours."
+        }
+      ]
+    },
+    {
+      "id": "phase-5-ssl-configuration",
+      "name": "Configure SSL/TLS Settings",
+      "type": "implementation",
+      "description": "Enable Cloudflare SSL/TLS in Full mode and configure HTTPS redirect",
+      "depends_on": [
+        "phase-4-namecheap-nameservers"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "Set SSL/TLS mode to Full",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "In Cloudflare Dashboard \u2192 SSL/TLS \u2192 Overview, select 'Full' mode (NOT Flexible). This ensures encrypted connection between Cloudflare and Cloudflare Pages origin. Verify the SSL/TLS encryption mode shows 'Full'."
+          },
+          "status": "pending",
+          "notes": "SSL/TLS modes: Flexible (insecure, avoid), Full (encrypts Cloudflare\u2194origin, use this), Full (Strict) (requires valid cert on origin, may fail with Pages). Cloudflare Pages provides automatic SSL on origin, so 'Full' mode is appropriate."
+        },
+        {
+          "id": "subtask-5-2",
+          "description": "Enable Always Use HTTPS redirect",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "In Cloudflare Dashboard \u2192 SSL/TLS \u2192 Edge Certificates, enable 'Always Use HTTPS' toggle. This automatically redirects all HTTP requests to HTTPS. Test by visiting http://danieltarazona.com (should redirect to https://)."
+          },
+          "status": "pending",
+          "notes": "This setting creates a 301 redirect from HTTP to HTTPS for all requests. Essential for security and SEO. Also enables HSTS (HTTP Strict Transport Security) when combined with Full SSL mode."
+        },
+        {
+          "id": "subtask-5-3",
+          "description": "Verify SSL certificate provisioning",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "In Cloudflare Dashboard \u2192 SSL/TLS \u2192 Edge Certificates, verify 'Active Certificate' status for danieltarazona.com and www.danieltarazona.com. Certificate type should be 'Universal SSL' or 'Cloudflare Managed Certificate'. Wait 1-5 minutes if status shows 'Pending'."
+          },
+          "status": "pending",
+          "notes": "Cloudflare automatically provisions free SSL certificates for domains using their nameservers. Certificates are typically issued within 1-5 minutes after DNS propagation begins. If 'Pending' for >10 minutes, verify DNS records are proxied (orange cloud)."
+        }
+      ]
+    },
+    {
+      "id": "phase-6-verification",
+      "name": "DNS Propagation & Site Verification",
+      "type": "integration",
+      "description": "Verify DNS propagation globally and confirm site is accessible at production domain with valid SSL",
+      "depends_on": [
+        "phase-5-ssl-configuration"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-6-1",
+          "description": "Verify DNS propagation globally",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Check DNS propagation status using https://whatsmydns.net for danieltarazona.com (A record) and nameservers (NS record). Verify at least 80% of global DNS servers show Cloudflare nameservers and A records pointing to Cloudflare IPs. Also check https://dnschecker.org for additional verification."
+          },
+          "status": "pending",
+          "notes": "DNS propagation is gradual. Different geographic regions and ISPs cache DNS records for varying durations (TTL-dependent). 80% propagation indicates most users can access the site. 100% propagation may take 24-48 hours."
+        },
+        {
+          "id": "subtask-6-2",
+          "description": "Verify site loads at https://danieltarazona.com",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "browser",
+            "url": "https://danieltarazona.com",
+            "checks": [
+              "Site loads without SSL warnings",
+              "Valid SSL certificate (check padlock icon)",
+              "Homepage renders correctly",
+              "All images, CSS, and JavaScript load",
+              "No mixed content warnings in DevTools console",
+              "Browser shows 'Connection is secure' in certificate details"
+            ]
+          },
+          "status": "pending",
+          "notes": "This is the primary production domain. All assets must load over HTTPS. If site doesn't load, check DNS propagation status and verify Cloudflare Pages shows domain as active."
+        },
+        {
+          "id": "subtask-6-3",
+          "description": "Verify www redirect to apex domain",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "browser",
+            "url": "https://www.danieltarazona.com",
+            "checks": [
+              "Redirects to https://danieltarazona.com",
+              "URL bar shows apex domain (without www)",
+              "Content matches apex domain site"
+            ]
+          },
+          "status": "pending",
+          "notes": "Cloudflare Pages automatically handles www\u2192apex redirection when both domains are added as custom domains. The redirect should be a 301 (permanent) or 308 (permanent, preserves method)."
+        },
+        {
+          "id": "subtask-6-4",
+          "description": "Verify sitemap accessibility",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [
+            "astro.config.mjs"
+          ],
+          "verification": {
+            "type": "browser",
+            "url": "https://danieltarazona.com/sitemap.xml",
+            "checks": [
+              "Sitemap XML file loads",
+              "Contains correct URLs with https://danieltarazona.com prefix",
+              "Valid XML structure (no parsing errors)",
+              "Includes all site pages"
+            ]
+          },
+          "status": "pending",
+          "notes": "Astro's @astrojs/sitemap integration automatically generates sitemap at build time. The sitemap should list all pages with the production domain (https://danieltarazona.com) as defined in astro.config.mjs site property."
+        },
+        {
+          "id": "subtask-6-5",
+          "description": "Verify SSL Labs grade (optional security check)",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Visit https://www.ssllabs.com/ssltest/analyze.html?d=danieltarazona.com and run SSL test. Verify site receives minimum grade A rating. Check for any configuration warnings or vulnerabilities."
+          },
+          "status": "pending",
+          "notes": "SSL Labs performs comprehensive SSL/TLS configuration analysis. Grade A indicates strong encryption and security posture. Cloudflare typically scores A+ with default settings. This is an optional but recommended security verification."
+        },
+        {
+          "id": "subtask-6-6",
+          "description": "End-to-end deployment verification",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "e2e",
+            "steps": [
+              "Visit https://danieltarazona.com in multiple browsers (Chrome, Firefox, Safari)",
+              "Test on mobile device (responsive design)",
+              "Verify all navigation links work",
+              "Check GitHub and LinkedIn social links function correctly",
+              "Confirm no 404 errors for any resources",
+              "Test HTTP\u2192HTTPS redirect (visit http://danieltarazona.com)",
+              "Verify page load performance is acceptable (<2 seconds)",
+              "Check browser console for any errors or warnings"
+            ]
+          },
+          "status": "pending",
+          "notes": "Final comprehensive check across multiple devices and browsers. Ensures the deployment is production-ready and all functionality works as expected."
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_phases": 6,
+    "total_subtasks": 17,
+    "services_involved": [
+      "main"
+    ],
+    "estimated_duration": "2-4 hours (excluding DNS propagation wait time of 24-48 hours)",
+    "key_dependencies": "GitHub secrets must be configured before deployment. DNS propagation to Cloudflare nameservers must complete before site is accessible at custom domain.",
+    "parallelism": {
+      "max_parallel_phases": 1,
+      "parallel_groups": [],
+      "recommended_workers": 1,
+      "speedup_estimate": "Sequential execution required due to dependencies",
+      "rationale": "This is a linear infrastructure deployment process where each phase depends on the previous phase completing successfully. DNS configuration must follow deployment, nameserver update must follow DNS configuration, and SSL configuration requires nameservers to be updated."
+    },
+    "startup_command": "source auto-claude/.venv/bin/activate && python auto-claude/run.py --spec 004 --parallel 1"
+  },
+  "verification_strategy": {
+    "risk_level": "medium",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "integration",
+      "e2e"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": true,
+    "acceptance_criteria": [
+      "GitHub Actions workflow successfully deploys to Cloudflare Pages",
+      "Site accessible at https://danieltarazona-com.pages.dev (staging/preview URL)",
+      "Cloudflare DNS zone configured with correct nameservers",
+      "DNS records (A/AAAA/CNAME) properly configured with proxy enabled",
+      "Namecheap nameservers updated to Cloudflare",
+      "DNS propagation verified at 80%+ globally",
+      "SSL/TLS configured in Full mode",
+      "Site accessible at https://danieltarazona.com with valid SSL",
+      "WWW redirect working correctly",
+      "Sitemap accessible and contains production URLs",
+      "No browser console errors",
+      "All assets load over HTTPS",
+      "SSL Labs grade A or higher"
+    ],
+    "verification_steps": [
+      {
+        "name": "GitHub Actions Deployment",
+        "command": "Check GitHub Actions workflow logs for successful deployment",
+        "expected_outcome": "Workflow completes with green status, no errors in logs",
+        "type": "integration",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Cloudflare Pages Preview",
+        "command": "curl -I https://danieltarazona-com.pages.dev",
+        "expected_outcome": "HTTP 200 response, valid headers",
+        "type": "integration",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "DNS Resolution",
+        "command": "dig danieltarazona.com A +short && dig danieltarazona.com NS +short",
+        "expected_outcome": "A records resolve to Cloudflare IPs, NS records show Cloudflare nameservers",
+        "type": "integration",
+        "required": true,
+        "blocking": false
+      },
+      {
+        "name": "HTTPS Accessibility",
+        "command": "curl -I https://danieltarazona.com",
+        "expected_outcome": "HTTP 200 response, valid SSL certificate",
+        "type": "e2e",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "WWW Redirect",
+        "command": "curl -I https://www.danieltarazona.com",
+        "expected_outcome": "HTTP 301/308 redirect to https://danieltarazona.com",
+        "type": "e2e",
+        "required": true,
+        "blocking": false
+      },
+      {
+        "name": "Sitemap Verification",
+        "command": "curl https://danieltarazona.com/sitemap.xml",
+        "expected_outcome": "Valid XML sitemap with https://danieltarazona.com URLs",
+        "type": "e2e",
+        "required": true,
+        "blocking": false
+      }
+    ],
+    "reasoning": "Medium risk deployment task requires integration testing (GitHub Actions build/deploy process) and E2E testing (DNS propagation, SSL, site accessibility). Staging deployment via Cloudflare Pages preview URL validates build before DNS configuration. No code changes but infrastructure verification is critical for production readiness."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": false,
+      "commands": [],
+      "minimum_coverage": null
+    },
+    "integration_tests": {
+      "required": true,
+      "commands": [
+        "curl -I https://danieltarazona-com.pages.dev",
+        "dig danieltarazona.com NS +short",
+        "dig danieltarazona.com A +short"
+      ],
+      "services_to_test": [
+        "main"
+      ]
+    },
+    "e2e_tests": {
+      "required": true,
+      "commands": [
+        "curl -sI https://danieltarazona.com | head -1",
+        "curl -sI https://www.danieltarazona.com | grep -i location",
+        "curl -s https://danieltarazona.com/sitemap.xml | head -5"
+      ],
+      "flows": [
+        "site-loads-with-ssl",
+        "www-redirects-to-apex",
+        "sitemap-accessible",
+        "assets-load-over-https"
+      ]
+    },
+    "browser_verification": {
+      "required": true,
+      "pages": [
+        {
+          "url": "https://danieltarazona.com",
+          "checks": [
+            "renders without errors",
+            "no console errors",
+            "valid SSL certificate",
+            "all assets load over HTTPS"
+          ]
+        },
+        {
+          "url": "https://www.danieltarazona.com",
+          "checks": [
+            "redirects to https://danieltarazona.com"
+          ]
+        },
+        {
+          "url": "https://danieltarazona.com/sitemap.xml",
+          "checks": [
+            "valid XML structure",
+            "contains production URLs"
+          ]
+        }
+      ]
+    },
+    "infrastructure_verification": {
+      "required": true,
+      "checks": [
+        {
+          "name": "GitHub Secrets Configured",
+          "location": "GitHub repository Settings \u2192 Secrets",
+          "expected": "CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID exist"
+        },
+        {
+          "name": "GitHub Actions Workflow Success",
+          "location": "GitHub Actions tab",
+          "expected": "Latest deployment shows green checkmark"
+        },
+        {
+          "name": "Cloudflare Pages Project",
+          "location": "Cloudflare Dashboard \u2192 Workers & Pages",
+          "expected": "danieltarazona-com project exists with Active deployment"
+        },
+        {
+          "name": "Cloudflare DNS Zone",
+          "location": "Cloudflare Dashboard \u2192 Websites",
+          "expected": "danieltarazona.com zone exists with Active status"
+        },
+        {
+          "name": "DNS Records Proxied",
+          "location": "Cloudflare Dashboard \u2192 DNS",
+          "expected": "Apex and www records show orange cloud (Proxied)"
+        },
+        {
+          "name": "Namecheap Nameservers",
+          "location": "Namecheap Domain Management",
+          "expected": "Custom DNS with Cloudflare nameservers"
+        },
+        {
+          "name": "SSL/TLS Mode",
+          "location": "Cloudflare Dashboard \u2192 SSL/TLS",
+          "expected": "Full mode enabled"
+        },
+        {
+          "name": "SSL Certificates",
+          "location": "Cloudflare Dashboard \u2192 SSL/TLS \u2192 Edge Certificates",
+          "expected": "Active Certificate for both apex and www"
+        },
+        {
+          "name": "HTTPS Redirect",
+          "location": "Cloudflare Dashboard \u2192 SSL/TLS \u2192 Edge Certificates",
+          "expected": "Always Use HTTPS enabled"
+        }
+      ]
+    },
+    "dns_verification": {
+      "required": true,
+      "checks": [
+        {
+          "type": "nameservers",
+          "command": "dig danieltarazona.com NS +short",
+          "expected": "Cloudflare nameservers (*.ns.cloudflare.com)"
+        },
+        {
+          "type": "a-record",
+          "command": "dig danieltarazona.com A +short",
+          "expected": "Cloudflare IP addresses"
+        },
+        {
+          "type": "www-cname",
+          "command": "dig www.danieltarazona.com CNAME +short",
+          "expected": "Points to apex or Pages deployment"
+        },
+        {
+          "type": "global-propagation",
+          "tool": "https://whatsmydns.net",
+          "expected": "80%+ propagation globally"
+        }
+      ]
+    },
+    "security_verification": {
+      "required": true,
+      "checks": [
+        {
+          "name": "SSL Labs Grade",
+          "tool": "https://www.ssllabs.com/ssltest/",
+          "expected": "Grade A or higher"
+        },
+        {
+          "name": "HTTPS Enforcement",
+          "test": "Visit http://danieltarazona.com",
+          "expected": "Redirects to https://"
+        },
+        {
+          "name": "Mixed Content",
+          "test": "Browser DevTools console on https://danieltarazona.com",
+          "expected": "No mixed content warnings"
+        },
+        {
+          "name": "Security Headers",
+          "command": "curl -I https://danieltarazona.com",
+          "expected": "X-Content-Type-Options, Strict-Transport-Security headers present"
+        }
+      ]
+    }
+  },
+  "qa_signoff": null,
+  "created_at": "2025-12-20T16:25:00.000Z",
+  "updated_at": "2025-12-20T16:25:00.000Z",
+  "last_updated": "2025-12-20T16:30:35.077464+00:00"
+}

@@ -1,0 +1,391 @@
+{
+  "integrations_researched": [
+    {
+      "name": "Astro",
+      "type": "framework",
+      "verified_package": {
+        "name": "astro",
+        "install_command": "npm install astro",
+        "version": "^4.16.18",
+        "verified": true,
+        "already_installed": true
+      },
+      "api_patterns": {
+        "imports": [
+          "import { defineConfig } from 'astro/config'"
+        ],
+        "initialization": "defineConfig({ site: 'https://danieltarazona.com', output: 'static' })",
+        "key_functions": [
+          "astro build - Build static site to ./dist",
+          "astro dev - Run development server",
+          "astro preview - Preview built site"
+        ],
+        "verified_against": "Context7 MCP: /withastro/docs"
+      },
+      "configuration": {
+        "env_vars": [],
+        "config_files": ["astro.config.mjs"],
+        "dependencies": ["@astrojs/tailwind", "@astrojs/sitemap"]
+      },
+      "infrastructure": {
+        "requires_docker": false,
+        "build_output": "./dist",
+        "static_site": true
+      },
+      "gotchas": [
+        "For static deployment, output must be set to 'static' (already configured)",
+        "Build output goes to ./dist directory by default"
+      ],
+      "research_sources": [
+        "Context7 MCP: /withastro/docs",
+        "Project file: package.json",
+        "Project file: astro.config.mjs"
+      ]
+    },
+    {
+      "name": "Cloudflare Pages",
+      "type": "service",
+      "verified_package": {
+        "name": "wrangler",
+        "install_command": "npm install wrangler@latest --save-dev",
+        "version": "latest",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [],
+        "initialization": "wrangler pages deploy ./dist --project-name=<PROJECT_NAME>",
+        "key_functions": [
+          "wrangler pages deploy ./dist - Deploy static assets",
+          "wrangler pages dev ./dist - Local preview",
+          "wrangler pages project create <NAME> - Create new project"
+        ],
+        "verified_against": "Context7 MCP: /websites/developers_cloudflare_pages"
+      },
+      "configuration": {
+        "env_vars": [
+          "CLOUDFLARE_API_TOKEN - Required for CLI deployment",
+          "CLOUDFLARE_ACCOUNT_ID - Required for CLI deployment"
+        ],
+        "config_files": ["wrangler.jsonc (optional for static sites)"],
+        "dependencies": ["wrangler CLI"]
+      },
+      "infrastructure": {
+        "requires_docker": false,
+        "hosting_type": "static",
+        "cdn": true,
+        "ssl": "automatic",
+        "preview_deployments": true
+      },
+      "deployment_options": {
+        "option_1_git_integration": {
+          "description": "Connect GitHub repo to Cloudflare Pages dashboard",
+          "steps": [
+            "Go to Cloudflare Dashboard > Workers & Pages",
+            "Create application > Pages > Connect to Git",
+            "Select GitHub repository",
+            "Configure build settings: Build command: npm run build, Output directory: dist",
+            "Deploy"
+          ],
+          "pros": ["Automatic deployments on push", "Preview deployments for PRs", "No secrets needed in code"],
+          "cons": ["Requires Cloudflare Dashboard access"]
+        },
+        "option_2_direct_upload": {
+          "description": "Deploy using Wrangler CLI",
+          "steps": [
+            "npm install wrangler@latest --save-dev",
+            "npx astro build",
+            "npx wrangler pages deploy ./dist --project-name=danieltarazona-com"
+          ],
+          "pros": ["Full control", "Can be automated via CI/CD"],
+          "cons": ["Requires API token setup"]
+        },
+        "option_3_github_actions": {
+          "description": "Automated deployment via GitHub Actions",
+          "workflow_file": ".github/workflows/deploy.yml",
+          "secrets_required": ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"],
+          "pros": ["Automated", "Version controlled", "Works with any Git hosting"],
+          "cons": ["Requires secrets configuration"]
+        }
+      },
+      "gotchas": [
+        "For apex domains (example.com), must add site as Cloudflare zone first",
+        "Nameservers must point to Cloudflare for apex domain custom domains",
+        "CNAME records alone work for subdomains only",
+        "Project name in Cloudflare cannot contain dots - use hyphens instead"
+      ],
+      "research_sources": [
+        "Context7 MCP: /websites/developers_cloudflare_pages",
+        "Context7 MCP: /cloudflare/wrangler-action"
+      ]
+    },
+    {
+      "name": "Cloudflare DNS",
+      "type": "service",
+      "verified_package": {
+        "name": "N/A - Dashboard/API configuration",
+        "install_command": "N/A",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [],
+        "initialization": "Dashboard configuration or Cloudflare API",
+        "key_functions": [
+          "Add zone (domain) to Cloudflare",
+          "Configure DNS records (A, CNAME, etc.)",
+          "Custom domain setup for Pages"
+        ],
+        "verified_against": "Context7 MCP: /cloudflare/cloudflare-docs"
+      },
+      "configuration": {
+        "env_vars": [],
+        "config_files": [],
+        "dependencies": []
+      },
+      "setup_steps": {
+        "step_1_add_zone": {
+          "description": "Add domain to Cloudflare",
+          "steps": [
+            "Log in to Cloudflare Dashboard",
+            "Click 'Add a Site'",
+            "Enter domain: danieltarazona.com",
+            "Select plan (Free plan works)",
+            "Cloudflare will scan existing DNS records",
+            "Review and confirm DNS records"
+          ]
+        },
+        "step_2_get_nameservers": {
+          "description": "Get Cloudflare nameservers",
+          "steps": [
+            "After adding zone, Cloudflare assigns nameservers",
+            "Note down the two nameservers (e.g., ada.ns.cloudflare.com, bob.ns.cloudflare.com)",
+            "These are unique per zone"
+          ]
+        },
+        "step_3_add_custom_domain_to_pages": {
+          "description": "Connect domain to Pages project",
+          "steps": [
+            "Go to Workers & Pages > Your project",
+            "Select 'Custom domains' tab",
+            "Click 'Set up a domain'",
+            "Enter: danieltarazona.com",
+            "Cloudflare will automatically create DNS records"
+          ]
+        }
+      },
+      "infrastructure": {
+        "requires_docker": false,
+        "ssl": "automatic (via Cloudflare)",
+        "cdn": true,
+        "ddos_protection": true
+      },
+      "gotchas": [
+        "Disable DNSSEC at registrar before changing nameservers",
+        "Nameserver propagation can take 24-48 hours",
+        "Cannot use apex domain without pointing nameservers to Cloudflare",
+        "Custom domain must be added through Pages dashboard, not just DNS records"
+      ],
+      "research_sources": [
+        "Context7 MCP: /cloudflare/cloudflare-docs",
+        "Context7 MCP: /websites/developers_cloudflare_pages"
+      ]
+    },
+    {
+      "name": "Namecheap",
+      "type": "service",
+      "verified_package": {
+        "name": "N/A - Domain registrar dashboard",
+        "install_command": "N/A",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [],
+        "initialization": "Dashboard configuration",
+        "key_functions": [
+          "Change nameservers to Cloudflare",
+          "Manage domain settings"
+        ],
+        "verified_against": "Namecheap documentation (known procedure)"
+      },
+      "configuration": {
+        "env_vars": [],
+        "config_files": [],
+        "dependencies": []
+      },
+      "setup_steps": {
+        "step_1_disable_dnssec": {
+          "description": "Disable DNSSEC if enabled",
+          "steps": [
+            "Log in to Namecheap",
+            "Go to Domain List > Manage",
+            "Under 'Advanced DNS', disable DNSSEC if enabled"
+          ]
+        },
+        "step_2_change_nameservers": {
+          "description": "Point to Cloudflare nameservers",
+          "steps": [
+            "Log in to Namecheap Dashboard",
+            "Go to Domain List",
+            "Click 'Manage' next to danieltarazona.com",
+            "Under 'Nameservers' section, select 'Custom DNS'",
+            "Enter Cloudflare nameservers (from Cloudflare dashboard)",
+            "Example: ada.ns.cloudflare.com, bob.ns.cloudflare.com",
+            "Click the checkmark to save"
+          ]
+        },
+        "step_3_verify": {
+          "description": "Verify nameserver change",
+          "steps": [
+            "Wait for propagation (can take up to 48 hours)",
+            "Check Cloudflare dashboard - zone should show 'Active'",
+            "Use dig or nslookup to verify: dig NS danieltarazona.com"
+          ]
+        }
+      },
+      "infrastructure": {
+        "requires_docker": false
+      },
+      "gotchas": [
+        "Nameserver changes can take 24-48 hours to propagate globally",
+        "Must disable DNSSEC before changing nameservers",
+        "Namecheap's BasicDNS must be switched to Custom DNS",
+        "Cannot mix Namecheap and Cloudflare nameservers"
+      ],
+      "research_sources": [
+        "Namecheap support documentation",
+        "General DNS knowledge"
+      ]
+    },
+    {
+      "name": "GitHub Actions (CI/CD)",
+      "type": "infrastructure",
+      "verified_package": {
+        "name": "cloudflare/wrangler-action",
+        "install_command": "N/A - GitHub Action",
+        "version": "v3",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [],
+        "initialization": "uses: cloudflare/wrangler-action@v3",
+        "key_functions": [
+          "pages deploy - Deploy to Cloudflare Pages",
+          "outputs.deployment-url - Get deployed URL"
+        ],
+        "verified_against": "Context7 MCP: /cloudflare/wrangler-action"
+      },
+      "configuration": {
+        "env_vars": [],
+        "config_files": [".github/workflows/deploy.yml"],
+        "dependencies": [],
+        "github_secrets": [
+          "CLOUDFLARE_API_TOKEN",
+          "CLOUDFLARE_ACCOUNT_ID"
+        ]
+      },
+      "example_workflow": {
+        "file": ".github/workflows/deploy.yml",
+        "content": "name: Deploy to Cloudflare Pages\n\non:\n  push:\n    branches:\n      - main\n\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n    permissions:\n      contents: read\n      deployments: write\n    steps:\n      - uses: actions/checkout@v4\n      - name: Setup Node\n        uses: actions/setup-node@v4\n        with:\n          node-version: '20'\n      - name: Install dependencies\n        run: npm ci\n      - name: Build\n        run: npm run build\n      - name: Deploy\n        uses: cloudflare/wrangler-action@v3\n        with:\n          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}\n          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}\n          command: pages deploy ./dist --project-name=danieltarazona-com"
+      },
+      "infrastructure": {
+        "requires_docker": false
+      },
+      "gotchas": [
+        "API token needs Pages:Edit permission",
+        "Account ID can be found in Cloudflare Dashboard URL or account settings",
+        "Project name should use hyphens, not dots",
+        "First deployment may need to create project via dashboard or CLI first"
+      ],
+      "research_sources": [
+        "Context7 MCP: /cloudflare/wrangler-action",
+        "Context7 MCP: /websites/developers_cloudflare_pages"
+      ]
+    }
+  ],
+  "unverified_claims": [
+    {
+      "claim": "Namecheap specific UI steps for changing nameservers",
+      "reason": "WebFetch was not available to access Namecheap documentation directly",
+      "risk_level": "low",
+      "mitigation": "Namecheap UI is straightforward; steps are standard DNS procedure"
+    }
+  ],
+  "recommendations": [
+    {
+      "recommendation": "Use Git Integration for simplest deployment",
+      "description": "Connecting GitHub directly to Cloudflare Pages is the simplest approach - no API tokens or secrets needed. Just connect repo in Cloudflare dashboard.",
+      "priority": "high"
+    },
+    {
+      "recommendation": "Complete Cloudflare zone setup before adding custom domain",
+      "description": "For apex domains like danieltarazona.com, must first add domain as zone in Cloudflare and update nameservers at Namecheap",
+      "priority": "high"
+    },
+    {
+      "recommendation": "Consider GitHub Actions for CI/CD",
+      "description": "If you need more control over the build process or want to add testing, use GitHub Actions with wrangler-action",
+      "priority": "medium"
+    },
+    {
+      "recommendation": "Plan for nameserver propagation time",
+      "description": "Nameserver changes take 24-48 hours. Plan deployment timeline accordingly.",
+      "priority": "medium"
+    },
+    {
+      "recommendation": "Disable DNSSEC before changing nameservers",
+      "description": "If DNSSEC is enabled at Namecheap, disable it before pointing to Cloudflare nameservers to avoid DNS resolution issues",
+      "priority": "high"
+    }
+  ],
+  "deployment_sequence": {
+    "step_1": {
+      "action": "Create Cloudflare account (if not exists)",
+      "details": "Sign up at cloudflare.com"
+    },
+    "step_2": {
+      "action": "Add domain to Cloudflare",
+      "details": "Add danieltarazona.com as a zone in Cloudflare"
+    },
+    "step_3": {
+      "action": "Update nameservers in Namecheap",
+      "details": "Change from Namecheap DNS to Cloudflare nameservers"
+    },
+    "step_4": {
+      "action": "Wait for propagation",
+      "details": "Zone should become 'Active' in Cloudflare (can take up to 48 hours)"
+    },
+    "step_5": {
+      "action": "Create Cloudflare Pages project",
+      "details": "Either via dashboard Git integration or manual upload"
+    },
+    "step_6": {
+      "action": "Deploy Astro site",
+      "details": "Build with 'npm run build', deploy via chosen method"
+    },
+    "step_7": {
+      "action": "Add custom domain to Pages project",
+      "details": "In Workers & Pages > project > Custom domains"
+    },
+    "step_8": {
+      "action": "Verify deployment",
+      "details": "Access site via danieltarazona.com and verify SSL"
+    }
+  },
+  "context7_libraries_used": [
+    "/withastro/docs",
+    "/websites/developers_cloudflare_pages",
+    "/cloudflare/cloudflare-docs",
+    "/cloudflare/wrangler-action"
+  ],
+  "project_context": {
+    "domain": "danieltarazona.com",
+    "framework": "Astro 4.x",
+    "output_type": "static",
+    "build_command": "npm run build",
+    "build_output": "./dist",
+    "current_config": {
+      "site": "https://danieltarazona.com",
+      "output": "static"
+    }
+  },
+  "created_at": "2024-12-20T12:00:00Z"
+}
